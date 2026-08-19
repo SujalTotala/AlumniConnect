@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Hero Header -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/primary"
+            android:orientation="vertical"
+            android:paddingHorizontal="20dp"
+            android:paddingVertical="24dp">
+
+            <TextView
+                android:id="@+id/tv_ed_type_emoji"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📅"
+                android:textSize="36sp" />
+
+            <TextView
+                android:id="@+id/tv_ed_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="Event Title"
+                android:textColor="@color/white"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tv_ed_type"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="Alumni Meet"
+                android:textColor="#BFDBFE"
+                android:textSize="13sp" />
+
+            <!-- Registered badge -->
+            <TextView
+                android:id="@+id/tv_ed_registered_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="#3D22C55E"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="4dp"
+                android:text="✓ You are registered"
+                android:textColor="#86EFAC"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+        </LinearLayout>
+
+        <!-- Details Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="16dp"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="3dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <!-- Date row -->
+                <LinearLayout android:id="@+id/row_ed_date"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:layout_marginBottom="14dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="DATE" android:textSize="9sp" android:textColor="@color/text_muted"
+                        android:textAllCaps="true" android:letterSpacing="0.1" />
+                    <TextView android:id="@+id/tv_ed_date"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textSize="14sp" android:textColor="@color/text_primary" android:textStyle="bold" />
+                </LinearLayout>
+
+                <!-- Time row -->
+                <LinearLayout android:id="@+id/row_ed_time"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:layout_marginBottom="14dp" android:visibility="gone">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="TIME" android:textSize="9sp" android:textColor="@color/text_muted"
+                        android:textAllCaps="true" android:letterSpacing="0.1" />
+                    <TextView android:id="@+id/tv_ed_time"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textSize="13sp" android:textColor="@color/text_primary" />
+                </LinearLayout>
+
+                <!-- Location row -->
+                <LinearLayout android:id="@+id/row_ed_location"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:layout_marginBottom="14dp" android:visibility="gone">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="LOCATION" android:textSize="9sp" android:textColor="@color/text_muted"
+                        android:textAllCaps="true" android:letterSpacing="0.1" />
+                    <TextView android:id="@+id/tv_ed_location"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textSize="13sp" android:textColor="@color/text_primary" />
+                </LinearLayout>
+
+                <!-- Registrations count -->
+                <LinearLayout android:id="@+id/row_ed_reg_count"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:layout_marginBottom="14dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="REGISTERED" android:textSize="9sp" android:textColor="@color/text_muted"
+                        android:textAllCaps="true" android:letterSpacing="0.1" />
+                    <TextView android:id="@+id/tv_ed_reg_count"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="0 attendees"
+                        android:textSize="13sp" android:textColor="@color/text_primary" />
+                </LinearLayout>
+
+                <!-- Description -->
+                <LinearLayout android:id="@+id/row_ed_description"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:layout_marginBottom="14dp" android:visibility="gone">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="DESCRIPTION" android:textSize="9sp" android:textColor="@color/text_muted"
+                        android:textAllCaps="true" android:letterSpacing="0.1" />
+                    <TextView android:id="@+id/tv_ed_description"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:textSize="13sp" android:textColor="@color/text_primary" />
+                </LinearLayout>
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Action Buttons Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="3dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <!-- Register Button -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_register_event"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:backgroundTint="@color/primary"
+                    android:text="Register for this Event"
+                    android:textAllCaps="false"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    app:cornerRadius="12dp"
+                    android:visibility="gone" />
+
+                <!-- Cancel Registration Button -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_cancel_registration"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:backgroundTint="@color/error"
+                    android:layout_marginTop="8dp"
+                    android:text="Cancel Registration"
+                    android:textAllCaps="false"
+                    android:textSize="14sp"
+                    app:cornerRadius="12dp"
+                    android:visibility="gone" />
+
+                <!-- Join Online Button -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_join_online"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:backgroundTint="#0A66C2"
+                    android:layout_marginTop="8dp"
+                    android:text="🔗 Join Online"
+                    android:textAllCaps="false"
+                    android:textSize="14sp"
+                    app:cornerRadius="12dp"
+                    android:visibility="gone" />
+
+                <!-- View Registrations (Admin/Creator) -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_view_registrations"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:backgroundTint="@color/accent"
+                    android:layout_marginTop="8dp"
+                    android:text="👥 View Attendees"
+                    android:textAllCaps="false"
+                    android:textSize="14sp"
+                    app:cornerRadius="12dp"
+                    android:visibility="gone" />
+
+                <!-- Registration progress -->
+                <ProgressBar
+                    android:id="@+id/progress_registration"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="8dp"
+                    android:indeterminateTint="@color/primary"
+                    android:visibility="gone" />
+
+                <!-- Status message -->
+                <TextView
+                    android:id="@+id/tv_registration_status_msg"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:padding="10dp"
+                    android:text=""
+                    android:textSize="12sp"
+                    android:visibility="gone" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+    </LinearLayout>
+
+</ScrollView>

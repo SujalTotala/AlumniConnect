@@ -1,0 +1,29 @@
+AlumniConnect database migrations
+=================================
+
+Development uses SQLite. Production is prepared for PostgreSQL through the
+installed pg8000 driver. DATABASE_URL selects the database; never place real
+credentials in this file.
+
+Safe examples:
+
+    DATABASE_URL=sqlite:///./alumni.db
+    DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DBNAME
+
+Run Alembic from the backend directory:
+
+    .\venv\Scripts\alembic.exe current
+    .\venv\Scripts\alembic.exe heads
+    .\venv\Scripts\alembic.exe history
+    .\venv\Scripts\alembic.exe upgrade head
+
+The production application does not create tables automatically. Apply
+Alembic migrations explicitly before starting it.
+
+Development/demo data transfer is an explicit operation provided by:
+
+    python scripts/migrate_sqlite_to_postgres.py --dry-run
+
+The utility reads SOURCE_DATABASE_URL and TARGET_DATABASE_URL. Review a dry
+run before executing without --dry-run. Never point it at a production target
+without explicit authorization and a verified backup/restore plan.
