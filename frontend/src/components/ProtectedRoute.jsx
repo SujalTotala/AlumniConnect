@@ -8,16 +8,22 @@ function ProtectedRoute({ children, allowedRoles }) {
     return <Navigate to="/" replace />;
   }
 
+  let user;
+  try {
+    user = JSON.parse(userStr);
+  } catch {
+    return <Navigate to="/" replace />;
+  }
+
+  if (!user) {
+    return <Navigate to="/" replace />;
+  }
+
   if (allowedRoles && allowedRoles.length > 0) {
-    try {
-      const user = JSON.parse(userStr);
-      const role = (user?.role || "").toLowerCase();
-      const normalizedAllowed = allowedRoles.map((r) => r.toLowerCase());
-      if (!normalizedAllowed.includes(role)) {
-        return <Navigate to="/dashboard" replace />;
-      }
-    } catch {
-      return <Navigate to="/" replace />;
+    const role = (user.role || "").toLowerCase();
+    const normalizedAllowed = allowedRoles.map((r) => r.toLowerCase());
+    if (!normalizedAllowed.includes(role)) {
+      return <Navigate to="/dashboard" replace />;
     }
   }
 

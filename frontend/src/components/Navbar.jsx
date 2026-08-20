@@ -18,7 +18,7 @@ function Navbar() {
     try {
       const res = await notificationApi.getUnreadCount();
       setUnreadCount(res.data.unread_count || 0);
-    } catch (err) {
+    } catch {
       // User might be logged out or network error
     }
   };

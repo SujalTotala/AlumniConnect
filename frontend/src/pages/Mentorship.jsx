@@ -8,7 +8,6 @@ const Mentorship = () => {
   const [sentRequests, setSentRequests] = useState([]);
   const [receivedRequests, setReceivedRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
   const [selectedMentor, setSelectedMentor] = useState(null);
   const [requestMessage, setRequestMessage] = useState("");
   const [sendingRequest, setSendingRequest] = useState(false);
@@ -30,7 +29,7 @@ const Mentorship = () => {
   const fetchMentors = async () => {
     setLoading(true);
     try {
-      const res = await mentorshipApi.getMentors(search ? { skills: search } : {});
+      const res = await mentorshipApi.getMentors();
       setMentors(res.data);
     } catch (err) {
       console.error("Failed to load mentors", err);

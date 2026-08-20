@@ -15,7 +15,6 @@ const Dashboard = () => {
     totalUsers: 0,
   });
   const [recentEvents, setRecentEvents] = useState([]);
-  const [recentOpportunities, setRecentOpportunities] = useState([]);
   const [loading, setLoading] = useState(true);
 
   let user = null;
@@ -65,7 +64,6 @@ const Dashboard = () => {
           });
 
           setRecentEvents(eventsList.slice(0, 2));
-          setRecentOpportunities(oppsList.slice(0, 2));
         }
       } catch (err) {
         console.error("Dashboard data load error:", err);
