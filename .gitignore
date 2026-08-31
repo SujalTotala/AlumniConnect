@@ -1,0 +1,42 @@
+# Environments & Secrets
+.env
+.env.*
+!.env.example
+!.env.production.example
+backend/.env
+frontend/.env
+*.env.local
+
+# Database binaries
+*.db
+*.sqlite
+*.sqlite3
+alumni.db
+backend/alumni.db
+/backend/backups/
+
+# Node / Frontend
+/frontend/node_modules/
+/frontend/dist/
+
+# Python Virtual Environments & Caches
+/.venv/
+/venv/
+/backend/venv/
+/backend/__pycache__/
+/**/__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Android
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/local.properties
+/android/.idea/
+*.iml
+
+# OS & System
+.DS_Store
+Thumbs.db
+*.log

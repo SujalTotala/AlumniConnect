@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">AlumniConnect</string>
+    <string name="tagline">Centralized Alumni Management &amp; Engagement</string>
+    <string name="login_title">Sign in to AlumniConnect</string>
+    <string name="email_hint">Email address</string>
+    <string name="password_hint">Password</string>
+    <string name="login_btn">Sign In</string>
+    <string name="register_prompt">Don\'t have an account? Sign Up</string>
+    <string name="register_title">Create Account</string>
+    <string name="name_hint">Full Name</string>
+    <string name="role_hint">Select Role</string>
+    <string name="register_btn">Register</string>
+    <string name="login_prompt">Already have an account? Sign In</string>
+    <string name="logout">Logout</string>
+</resources>
