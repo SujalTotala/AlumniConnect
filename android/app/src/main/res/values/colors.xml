@@ -1,17 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Brand / Accent -->
     <color name="primary">#1D4ED8</color>
     <color name="primary_dark">#1E40AF</color>
     <color name="primary_light">#DBEAFE</color>
     <color name="accent">#4F46E5</color>
+    <color name="accent_light">#EEF2FF</color>
 
+    <!-- Surfaces -->
     <color name="background">#F8FAFC</color>
     <color name="card_background">#FFFFFF</color>
     
+    <!-- High-Contrast Modern Deep Slate Typography -->
     <color name="text_primary">#0F172A</color>
-    <color name="text_secondary">#64748B</color>
-    <color name="text_muted">#94A3B8</color>
+    <color name="text_secondary">#334155</color>
+    <color name="text_muted">#64748B</color>
 
+    <!-- Text Boxes / Inputs (Modern Rounded, Crisp White Fill, Vibrant Indigo Focus) -->
+    <color name="input_background">#FFFFFF</color>
+    <color name="input_stroke_default">#CBD5E1</color>
+    <color name="input_stroke_focused">#4F46E5</color>
+    <color name="input_stroke_hover">#94A3B8</color>
+
+    <!-- Status & Neutrals -->
     <color name="success">#10B981</color>
     <color name="error">#EF4444</color>
     <color name="warning">#F59E0B</color>
