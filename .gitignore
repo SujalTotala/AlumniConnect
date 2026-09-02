@@ -33,8 +33,15 @@ backend/alumni.db
 /android/build/
 /android/app/build/
 /android/local.properties
-/android/.idea/
+# IDE & Editor
+.idea/
 *.iml
+
+# Android Keystore & APK Binaries
+*.apk
+*.jks
+*.keystore
+keystore.properties
 
 # OS & System
 .DS_Store

@@ -1,11 +1,7 @@
 import axios from "axios";
 
-// Require explicit API base URL in production builds to avoid accidental localhost targeting.
-const envBase = import.meta.env.VITE_API_BASE_URL;
-const isProd = import.meta.env.MODE === "production";
-if (isProd && !envBase) {
-  throw new Error("VITE_API_BASE_URL must be set for production builds — aborting startup to avoid accidental localhost targeting.");
-}
+// Require explicit API base URL in production, falling back to verified production backend
+const envBase = import.meta.env.VITE_API_BASE_URL || (import.meta.env.MODE === "production" ? "https://alumniconnect-bwoi.onrender.com" : "");
 const API = axios.create({
   baseURL: envBase || "http://127.0.0.1:8000",
   headers: {

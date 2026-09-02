@@ -14,7 +14,6 @@ import com.alumniconnect.app.fragments.EventsFragment;
 import com.alumniconnect.app.fragments.HomeFragment;
 import com.alumniconnect.app.fragments.MentorshipFragment;
 import com.alumniconnect.app.fragments.OpportunitiesFragment;
-import com.alumniconnect.app.fragments.PlaceholderFragment;
 import com.alumniconnect.app.fragments.ProfileFragment;
 import com.alumniconnect.app.models.UnreadCountResponse;
 import com.alumniconnect.app.repositories.NotificationRepository;
@@ -153,7 +152,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void fetchUnreadCount() {
-        if (sessionManager.getToken().isEmpty()) return;
+        String token = sessionManager.getToken();
+        if (token == null || token.isEmpty()) return;
         notificationRepository.getUnreadNotificationCount().enqueue(new Callback<UnreadCountResponse>() {
             @Override
             @com.google.android.material.badge.ExperimentalBadgeUtils

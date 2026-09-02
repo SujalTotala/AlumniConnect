@@ -16,7 +16,11 @@ public class ApiClient {
     public static ApiService getApiService(Context context) {
         if (apiService == null) {
             HttpLoggingInterceptor loggingInterceptor = new HttpLoggingInterceptor();
-            loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BODY);
+            if (BuildConfig.DEBUG) {
+                loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BODY);
+            } else {
+                loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.NONE);
+            }
 
             OkHttpClient client = new OkHttpClient.Builder()
                     .addInterceptor(new AuthInterceptor(context))

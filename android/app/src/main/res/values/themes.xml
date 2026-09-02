@@ -5,8 +5,20 @@
         <item name="colorPrimaryVariant">@color/primary_dark</item>
         <item name="colorOnPrimary">@color/white</item>
         <item name="colorSecondary">@color/accent</item>
+        <item name="colorOnSecondary">@color/white</item>
         <item name="android:statusBarColor">@color/primary_dark</item>
         <item name="android:windowBackground">@color/background</item>
+
+        <!-- Global Font & Typography Colors -->
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:textColorHint">@color/text_muted</item>
+        <item name="android:editTextColor">@color/text_primary</item>
+
+        <!-- Global Text Boxes Styling -->
+        <item name="textInputStyle">@style/Widget.AlumniConnect.TextInputLayout</item>
+        <item name="editTextStyle">@style/Widget.AlumniConnect.EditText</item>
     </style>
 
     <style name="Theme.AlumniConnect.NoActionBar">
@@ -15,7 +27,59 @@
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryVariant">@color/primary_dark</item>
         <item name="colorOnPrimary">@color/white</item>
+        <item name="colorSecondary">@color/accent</item>
+        <item name="colorOnSecondary">@color/white</item>
         <item name="android:statusBarColor">@color/primary_dark</item>
         <item name="android:windowBackground">@color/background</item>
+
+        <!-- Global Font & Typography Colors -->
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+        <item name="android:textColorHint">@color/text_muted</item>
+        <item name="android:editTextColor">@color/text_primary</item>
+
+        <!-- Global Text Boxes Styling -->
+        <item name="textInputStyle">@style/Widget.AlumniConnect.TextInputLayout</item>
+        <item name="editTextStyle">@style/Widget.AlumniConnect.EditText</item>
+    </style>
+
+    <!-- Custom Text Box (TextInputLayout) Styles: Crisp White, Rounded 12dp, Indigo Focus -->
+    <style name="Widget.AlumniConnect.TextInputLayout" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+        <item name="boxBackgroundMode">outline</item>
+        <item name="boxBackgroundColor">@color/input_background</item>
+        <item name="boxStrokeColor">@color/text_box_stroke</item>
+        <item name="boxStrokeWidth">1.5dp</item>
+        <item name="boxStrokeWidthFocused">2dp</item>
+        <item name="boxCornerRadiusTopStart">12dp</item>
+        <item name="boxCornerRadiusTopEnd">12dp</item>
+        <item name="boxCornerRadiusBottomStart">12dp</item>
+        <item name="boxCornerRadiusBottomEnd">12dp</item>
+        <item name="hintTextColor">@color/text_box_hint</item>
+        <item name="android:textColorHint">@color/text_muted</item>
+        <item name="boxStrokeErrorColor">@color/error</item>
+        <item name="errorTextColor">@color/error</item>
+    </style>
+
+    <style name="Widget.AlumniConnect.TextInputLayout.Dropdown" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
+        <item name="boxBackgroundMode">outline</item>
+        <item name="boxBackgroundColor">@color/input_background</item>
+        <item name="boxStrokeColor">@color/text_box_stroke</item>
+        <item name="boxStrokeWidth">1.5dp</item>
+        <item name="boxStrokeWidthFocused">2dp</item>
+        <item name="boxCornerRadiusTopStart">12dp</item>
+        <item name="boxCornerRadiusTopEnd">12dp</item>
+        <item name="boxCornerRadiusBottomStart">12dp</item>
+        <item name="boxCornerRadiusBottomEnd">12dp</item>
+        <item name="hintTextColor">@color/text_box_hint</item>
+        <item name="android:textColorHint">@color/text_muted</item>
+        <item name="boxStrokeErrorColor">@color/error</item>
+        <item name="errorTextColor">@color/error</item>
+    </style>
+
+    <!-- Custom EditText Styles: Modern Deep Slate Font -->
+    <style name="Widget.AlumniConnect.EditText" parent="Widget.MaterialComponents.TextInputEditText.OutlinedBox">
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textColorHint">@color/text_muted</item>
     </style>
 </resources>
