@@ -152,7 +152,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void fetchUnreadCount() {
-        if (sessionManager.getToken().isEmpty()) return;
+        String token = sessionManager.getToken();
+        if (token == null || token.isEmpty()) return;
         notificationRepository.getUnreadNotificationCount().enqueue(new Callback<UnreadCountResponse>() {
             @Override
             @com.google.android.material.badge.ExperimentalBadgeUtils
