@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from "react-router-dom";
 
-const Sidebar = () => {
+const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
   const navigate = useNavigate();
 
   let user = null;
@@ -14,6 +14,7 @@ const Sidebar = () => {
   const logout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    onClose();
     navigate("/");
   };
 
@@ -32,17 +33,31 @@ const Sidebar = () => {
   }
 
   return (
-    <aside className="w-64 bg-slate-900 text-white min-h-screen fixed left-0 top-0 flex flex-col justify-between shadow-xl z-20 overflow-y-auto">
+    <aside
+      className={`w-64 bg-slate-900 text-white min-h-screen fixed left-0 top-0 flex flex-col justify-between shadow-xl z-30 overflow-y-auto transition-transform duration-300 ease-in-out ${
+        isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+      }`}
+    >
       <div>
         {/* Brand Header */}
-        <div className="p-6 border-b border-slate-800 flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center font-bold text-xl shadow-lg">
-            AC
+        <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center font-bold text-xl shadow-lg">
+              AC
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-white tracking-wide">AlumniConnect</h1>
+              <p className="text-xs text-slate-400">Portal & Network</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-white tracking-wide">AlumniConnect</h1>
-            <p className="text-xs text-slate-400">Portal & Network</p>
-          </div>
+          {/* Mobile close button */}
+          <button
+            onClick={onClose}
+            className="md:hidden text-slate-400 hover:text-white p-1 rounded-lg transition"
+            aria-label="Close menu"
+          >
+            <span className="text-xl leading-none">✕</span>
+          </button>
         </div>
 
         {/* Navigation Links */}
@@ -51,6 +66,7 @@ const Sidebar = () => {
             <NavLink
               key={item.path}
               to={item.path}
+              onClick={onClose}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition ${
                   isActive

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { notificationApi } from "../api/notificationApi";
 
-function Navbar() {
+function Navbar({ onToggleSidebar = () => {} }) {
   const navigate = useNavigate();
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -47,14 +47,25 @@ function Navbar() {
   };
 
   return (
-    <header className="bg-white shadow-sm border-b border-slate-200 px-8 py-4 flex justify-between items-center sticky top-0 z-10">
-      <div className="flex items-center space-x-3">
-        <h2 className="text-xl font-bold text-slate-800">
+    <header className="bg-white shadow-xs border-b border-slate-200 px-4 sm:px-8 py-3 sm:py-4 flex justify-between items-center sticky top-0 z-10">
+      <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+        {/* Mobile Hamburger Toggle Button */}
+        <button
+          onClick={onToggleSidebar}
+          className="md:hidden p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition"
+          aria-label="Toggle navigation menu"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+
+        <h2 className="text-base sm:text-xl font-bold text-slate-800 truncate">
           Welcome, <span className="text-blue-700">{user?.name || "Member"}</span>
         </h2>
         {user?.role && (
           <span
-            className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border capitalize ${getRoleBadgeColor(
+            className={`hidden sm:inline-block text-xs font-semibold px-2.5 py-0.5 rounded-full border capitalize ${getRoleBadgeColor(
               user.role
             )}`}
           >
@@ -63,14 +74,14 @@ function Navbar() {
         )}
       </div>
 
-      <div className="flex items-center space-x-4">
+      <div className="flex items-center space-x-2 sm:space-x-4 shrink-0">
         {/* Notifications Icon Button with Live Unread Badge */}
         <Link
           to="/notifications"
-          className="relative p-2.5 text-slate-600 hover:text-blue-700 hover:bg-slate-100 rounded-xl transition flex items-center justify-center"
+          className="relative p-2 sm:p-2.5 text-slate-600 hover:text-blue-700 hover:bg-slate-100 rounded-xl transition flex items-center justify-center"
           title="Notifications"
         >
-          <span className="text-xl">🔔</span>
+          <span className="text-lg sm:text-xl">🔔</span>
           {unreadCount > 0 && (
             <span className="absolute -top-0.5 -right-0.5 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white animate-pulse">
               {unreadCount > 99 ? "99+" : unreadCount}
@@ -81,9 +92,9 @@ function Navbar() {
         {/* Profile Link */}
         <Link
           to="/profile"
-          className="flex items-center gap-2 p-1.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium transition"
+          className="flex items-center gap-2 p-1.5 px-2.5 sm:px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-medium transition"
         >
-          <span className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-bold">
+          <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-bold">
             {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
           </span>
           <span className="hidden md:inline-block">{user?.name}</span>
@@ -92,7 +103,7 @@ function Navbar() {
         {/* Logout */}
         <button
           onClick={handleLogout}
-          className="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition border border-red-200"
+          className="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-semibold transition border border-red-200"
         >
           Logout
         </button>
