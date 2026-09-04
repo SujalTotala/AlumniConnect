@@ -13,9 +13,9 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.alumniconnect.app.R;
 import com.alumniconnect.app.models.Event;
 import com.alumniconnect.app.repositories.EventRepository;
+import com.alumniconnect.app.utils.ApiErrorUtils;
 import com.alumniconnect.app.utils.SessionManager;
 import com.google.android.material.button.MaterialButton;
-import org.json.JSONObject;
 import java.util.Map;
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -28,6 +28,14 @@ public class EventDetailsActivity extends AppCompatActivity {
 
     private int eventId;
     private Event currentEvent;
+    private boolean isRegistrationInProgress = false;
+
+    // State Views
+    private View layoutContent;
+    private ProgressBar progressDetail;
+    private View layoutError;
+    private TextView tvErrorMsg;
+    private MaterialButton btnRetry;
 
     // Header Views
     private TextView tvEdTypeEmoji, tvEdTitle, tvEdType, tvEdRegisteredBadge;
@@ -51,6 +59,13 @@ public class EventDetailsActivity extends AppCompatActivity {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
             getSupportActionBar().setTitle("Event Details");
         }
+
+        // State views
+        layoutContent = findViewById(R.id.layout_event_content);
+        progressDetail = findViewById(R.id.progress_event_detail);
+        layoutError = findViewById(R.id.layout_event_detail_error);
+        tvErrorMsg = findViewById(R.id.tv_event_detail_error_msg);
+        btnRetry = findViewById(R.id.btn_event_detail_retry);
 
         // Bind
         tvEdTypeEmoji = findViewById(R.id.tv_ed_type_emoji);
@@ -93,12 +108,18 @@ public class EventDetailsActivity extends AppCompatActivity {
         btnCancelRegistration.setOnClickListener(v -> cancelRegistration());
         btnJoinOnline.setOnClickListener(v -> joinOnline());
         btnViewRegistrations.setOnClickListener(v -> viewRegistrations());
+        btnRetry.setOnClickListener(v -> fetchEventDetails());
+
+        fetchEventDetails();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        fetchEventDetails();
+        // Refresh when coming back from sub-activities
+        if (currentEvent != null) {
+            fetchEventDetails();
+        }
     }
 
     @Override
@@ -111,22 +132,44 @@ public class EventDetailsActivity extends AppCompatActivity {
     }
 
     private void fetchEventDetails() {
+        showLoadingState();
+
         eventRepository.getEventById(eventId).enqueue(new Callback<Event>() {
             @Override
             public void onResponse(Call<Event> call, Response<Event> response) {
                 if (response.isSuccessful() && response.body() != null) {
                     currentEvent = response.body();
+                    showSuccessState();
                     renderEvent(currentEvent);
                 } else {
-                    Toast.makeText(EventDetailsActivity.this, "Failed to load event details.", Toast.LENGTH_SHORT).show();
+                    showErrorState(ApiErrorUtils.parseError(response));
                 }
             }
 
             @Override
             public void onFailure(Call<Event> call, Throwable t) {
-                Toast.makeText(EventDetailsActivity.this, "Network error loading details.", Toast.LENGTH_SHORT).show();
+                showErrorState(ApiErrorUtils.parseThrowable(t));
             }
         });
+    }
+
+    private void showLoadingState() {
+        if (progressDetail != null) progressDetail.setVisibility(View.VISIBLE);
+        if (layoutContent != null) layoutContent.setVisibility(View.GONE);
+        if (layoutError != null) layoutError.setVisibility(View.GONE);
+    }
+
+    private void showSuccessState() {
+        if (progressDetail != null) progressDetail.setVisibility(View.GONE);
+        if (layoutContent != null) layoutContent.setVisibility(View.VISIBLE);
+        if (layoutError != null) layoutError.setVisibility(View.GONE);
+    }
+
+    private void showErrorState(String message) {
+        if (progressDetail != null) progressDetail.setVisibility(View.GONE);
+        if (layoutContent != null) layoutContent.setVisibility(View.GONE);
+        if (layoutError != null) layoutError.setVisibility(View.VISIBLE);
+        if (tvErrorMsg != null) tvErrorMsg.setText(message);
     }
 
     private void renderEvent(Event event) {
@@ -195,52 +238,67 @@ public class EventDetailsActivity extends AppCompatActivity {
     }
 
     private void registerForEvent() {
+        if (isRegistrationInProgress) return;
         setRegistrationLoading(true);
+
         eventRepository.registerForEvent(eventId).enqueue(new Callback<Map<String, Object>>() {
             @Override
             public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> response) {
                 setRegistrationLoading(false);
                 if (response.isSuccessful()) {
-                    showSuccessMsg("Successfully registered! Checked-in successfully.");
-                    fetchEventDetails();
-                } else if (response.code() == 400) {
-                    String error = parseErrorDetail(response);
-                    if (error.contains("already registered")) {
-                        showErrorMsg("You are already registered for this event.");
-                    } else {
-                        showErrorMsg(error);
-                    }
+                    showSuccessMsg("Successfully registered for event!");
+                    fetchEventDetailsSilently();
                 } else {
-                    showErrorMsg("Failed to register. HTTP " + response.code());
+                    String error = ApiErrorUtils.parseError(response);
+                    showErrorMsg(error);
                 }
             }
 
             @Override
             public void onFailure(Call<Map<String, Object>> call, Throwable t) {
                 setRegistrationLoading(false);
-                showErrorMsg("Network error registering for event.");
+                showErrorMsg(ApiErrorUtils.parseThrowable(t));
             }
         });
     }
 
     private void cancelRegistration() {
+        if (isRegistrationInProgress) return;
         setRegistrationLoading(true);
+
         eventRepository.cancelEventRegistration(eventId).enqueue(new Callback<Map<String, Object>>() {
             @Override
             public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> response) {
                 setRegistrationLoading(false);
                 if (response.isSuccessful()) {
                     showSuccessMsg("Registration cancelled successfully.");
-                    fetchEventDetails();
+                    fetchEventDetailsSilently();
                 } else {
-                    showErrorMsg("Failed to cancel registration.");
+                    showErrorMsg(ApiErrorUtils.parseError(response));
                 }
             }
 
             @Override
             public void onFailure(Call<Map<String, Object>> call, Throwable t) {
                 setRegistrationLoading(false);
-                showErrorMsg("Network error cancelling registration.");
+                showErrorMsg(ApiErrorUtils.parseThrowable(t));
+            }
+        });
+    }
+
+    private void fetchEventDetailsSilently() {
+        eventRepository.getEventById(eventId).enqueue(new Callback<Event>() {
+            @Override
+            public void onResponse(Call<Event> call, Response<Event> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    currentEvent = response.body();
+                    renderEvent(currentEvent);
+                }
+            }
+
+            @Override
+            public void onFailure(Call<Event> call, Throwable t) {
+                // Keep existing UI if silent refresh fails
             }
         });
     }
@@ -265,6 +323,7 @@ public class EventDetailsActivity extends AppCompatActivity {
     }
 
     private void setRegistrationLoading(boolean loading) {
+        isRegistrationInProgress = loading;
         progressRegistration.setVisibility(loading ? View.VISIBLE : View.GONE);
         btnRegister.setEnabled(!loading);
         btnCancelRegistration.setEnabled(!loading);
@@ -274,25 +333,14 @@ public class EventDetailsActivity extends AppCompatActivity {
     private void showSuccessMsg(String msg) {
         tvStatusMsg.setText(msg);
         tvStatusMsg.setTextColor(getResources().getColor(R.color.success, null));
-        tvStatusMsg.setBackgroundColor(0x1F10B981); // green tinted bg
+        tvStatusMsg.setBackgroundColor(0x1F10B981);
         tvStatusMsg.setVisibility(View.VISIBLE);
     }
 
     private void showErrorMsg(String msg) {
         tvStatusMsg.setText(msg);
         tvStatusMsg.setTextColor(getResources().getColor(R.color.error, null));
-        tvStatusMsg.setBackgroundColor(0x1FEF4444); // red tinted bg
+        tvStatusMsg.setBackgroundColor(0x1FEF4444);
         tvStatusMsg.setVisibility(View.VISIBLE);
-    }
-
-    private String parseErrorDetail(Response<?> response) {
-        try {
-            if (response.errorBody() != null) {
-                String json = response.errorBody().string();
-                JSONObject obj = new JSONObject(json);
-                if (obj.has("detail")) return obj.getString("detail");
-            }
-        } catch (Exception ignored) {}
-        return "Registration rejected by server.";
     }
 }

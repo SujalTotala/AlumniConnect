@@ -17,12 +17,15 @@ import com.alumniconnect.app.R;
 import com.alumniconnect.app.adapters.NotificationAdapter;
 import com.alumniconnect.app.models.Notification;
 import com.alumniconnect.app.repositories.NotificationRepository;
+import com.alumniconnect.app.utils.ApiErrorUtils;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.chip.ChipGroup;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -42,8 +45,10 @@ public class NotificationsActivity extends AppCompatActivity implements Notifica
     private ChipGroup chipGroupFilter;
     private Chip chipFilterAll, chipFilterUnread;
 
-    // Cache list
+    // Cache list & duplicate protection
     private final List<Notification> allNotifications = new ArrayList<>();
+    private final Set<Integer> pendingMarkReadIds = new HashSet<>();
+    private boolean isMarkingAllRead = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -133,7 +138,8 @@ public class NotificationsActivity extends AppCompatActivity implements Notifica
                     layoutError.setVisibility(View.GONE);
                     applyFilter();
                 } else {
-                    showError("Failed to load notifications (HTTP " + response.code() + ").");
+                    String error = ApiErrorUtils.getErrorMessage(response);
+                    showError(error);
                 }
             }
 
@@ -141,7 +147,8 @@ public class NotificationsActivity extends AppCompatActivity implements Notifica
             public void onFailure(Call<List<Notification>> call, Throwable t) {
                 progressNotifications.setVisibility(View.GONE);
                 swipeRefresh.setRefreshing(false);
-                showError("Network error. Verify connection and retry.");
+                String error = ApiErrorUtils.getNetworkErrorMessage(t);
+                showError(error);
             }
         });
     }
@@ -185,10 +192,16 @@ public class NotificationsActivity extends AppCompatActivity implements Notifica
 
     @Override
     public void onMarkReadClick(Notification notif) {
+        if (notif == null || notif.isRead()) return;
+        if (pendingMarkReadIds.contains(notif.getId())) return; // Duplicate click guard
+
+        pendingMarkReadIds.add(notif.getId());
+
         // Mark Single Read
         notificationRepository.markNotificationRead(notif.getId()).enqueue(new Callback<Notification>() {
             @Override
             public void onResponse(Call<Notification> call, Response<Notification> response) {
+                pendingMarkReadIds.remove(notif.getId());
                 if (response.isSuccessful() && response.body() != null) {
                     // Update cache state
                     for (Notification n : allNotifications) {
@@ -198,29 +211,32 @@ public class NotificationsActivity extends AppCompatActivity implements Notifica
                         }
                     }
                     applyFilter();
-                } else if (response.code() == 403) {
-                    Toast.makeText(NotificationsActivity.this, "You do not have permission to perform this action.", Toast.LENGTH_LONG).show();
                 } else {
-                    Toast.makeText(NotificationsActivity.this, "Failed to mark read.", Toast.LENGTH_SHORT).show();
+                    String error = ApiErrorUtils.getErrorMessage(response);
+                    Toast.makeText(NotificationsActivity.this, error, Toast.LENGTH_SHORT).show();
                 }
             }
 
             @Override
             public void onFailure(Call<Notification> call, Throwable t) {
-                Toast.makeText(NotificationsActivity.this, "Network error.", Toast.LENGTH_SHORT).show();
+                pendingMarkReadIds.remove(notif.getId());
+                String error = ApiErrorUtils.getNetworkErrorMessage(t);
+                Toast.makeText(NotificationsActivity.this, error, Toast.LENGTH_SHORT).show();
             }
         });
     }
 
     @Override
     public void onNotificationClick(Notification notif) {
+        if (notif == null) return;
+
         // Click -> mark read then navigate
         if (!notif.isRead()) {
             onMarkReadClick(notif);
         }
         
         // Deep linking
-        String type = notif.getNotificationType().toUpperCase();
+        String type = notif.getNotificationType() != null ? notif.getNotificationType().toUpperCase() : "";
         Intent intent = new Intent(this, MainActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         
@@ -237,6 +253,8 @@ public class NotificationsActivity extends AppCompatActivity implements Notifica
     }
 
     private void markAllAsRead() {
+        if (isMarkingAllRead) return;
+
         boolean hasUnread = false;
         for (Notification n : allNotifications) {
             if (!n.isRead()) {
@@ -246,10 +264,12 @@ public class NotificationsActivity extends AppCompatActivity implements Notifica
         }
         if (!hasUnread) return;
 
+        isMarkingAllRead = true;
         progressNotifications.setVisibility(View.VISIBLE);
         notificationRepository.markAllNotificationsRead().enqueue(new Callback<Map<String, Object>>() {
             @Override
             public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> response) {
+                isMarkingAllRead = false;
                 progressNotifications.setVisibility(View.GONE);
                 if (response.isSuccessful()) {
                     for (Notification n : allNotifications) {
@@ -258,14 +278,17 @@ public class NotificationsActivity extends AppCompatActivity implements Notifica
                     applyFilter();
                     Toast.makeText(NotificationsActivity.this, "All notifications marked as read.", Toast.LENGTH_SHORT).show();
                 } else {
-                    Toast.makeText(NotificationsActivity.this, "Failed to mark all read.", Toast.LENGTH_SHORT).show();
+                    String error = ApiErrorUtils.getErrorMessage(response);
+                    Toast.makeText(NotificationsActivity.this, error, Toast.LENGTH_SHORT).show();
                 }
             }
 
             @Override
             public void onFailure(Call<Map<String, Object>> call, Throwable t) {
+                isMarkingAllRead = false;
                 progressNotifications.setVisibility(View.GONE);
-                Toast.makeText(NotificationsActivity.this, "Network error.", Toast.LENGTH_SHORT).show();
+                String error = ApiErrorUtils.getNetworkErrorMessage(t);
+                Toast.makeText(NotificationsActivity.this, error, Toast.LENGTH_SHORT).show();
             }
         });
     }

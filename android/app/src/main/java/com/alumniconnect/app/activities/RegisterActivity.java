@@ -3,6 +3,7 @@ package com.alumniconnect.app.activities;
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.util.Patterns;
 import android.view.View;
 import android.widget.ProgressBar;
 import android.widget.RadioButton;
@@ -14,10 +15,10 @@ import com.alumniconnect.app.models.LoginResponse;
 import com.alumniconnect.app.models.RegisterRequest;
 import com.alumniconnect.app.network.ApiClient;
 import com.alumniconnect.app.network.ApiService;
+import com.alumniconnect.app.utils.ApiErrorUtils;
 import com.alumniconnect.app.utils.SessionManager;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
-import org.json.JSONObject;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -30,6 +31,7 @@ public class RegisterActivity extends AppCompatActivity {
     private ProgressBar progressBar;
     private TextView tvError, tvGotoLogin;
     private SessionManager sessionManager;
+    private boolean isRegistering = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,23 +57,30 @@ public class RegisterActivity extends AppCompatActivity {
     }
 
     private void performRegistration() {
+        if (isRegistering) return; // Prevent duplicate rapid submission
+
         String name = etName.getText() != null ? etName.getText().toString().trim() : "";
         String email = etEmail.getText() != null ? etEmail.getText().toString().trim() : "";
         String password = etPassword.getText() != null ? etPassword.getText().toString().trim() : "";
         String role = rbAlumni.isChecked() ? "alumni" : "student";
 
         if (TextUtils.isEmpty(name)) {
-            showError("Please enter your full name");
+            showError("Please enter your full name.");
             return;
         }
 
         if (TextUtils.isEmpty(email)) {
-            showError("Please enter your email address");
+            showError("Please enter your email address.");
+            return;
+        }
+
+        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+            showError("Please enter a valid email address.");
             return;
         }
 
         if (TextUtils.isEmpty(password) || password.length() < 6) {
-            showError("Password must be at least 6 characters");
+            showError("Password must be at least 6 characters.");
             return;
         }
 
@@ -93,7 +102,7 @@ public class RegisterActivity extends AppCompatActivity {
                         finish();
                     }
                 } else {
-                    String errorMsg = parseErrorMessage(response);
+                    String errorMsg = ApiErrorUtils.parseError(response);
                     showError(errorMsg);
                 }
             }
@@ -101,32 +110,20 @@ public class RegisterActivity extends AppCompatActivity {
             @Override
             public void onFailure(Call<LoginResponse> call, Throwable t) {
                 setLoading(false);
-                showError("Unable to connect to server: " + t.getMessage());
+                showError(ApiErrorUtils.parseThrowable(t));
             }
         });
     }
 
-    private String parseErrorMessage(Response<?> response) {
-        try {
-            if (response.errorBody() != null) {
-                String errorJson = response.errorBody().string();
-                JSONObject jsonObject = new JSONObject(errorJson);
-                if (jsonObject.has("detail")) {
-                    return jsonObject.getString("detail");
-                }
-            }
-        } catch (Exception e) {
-            // Fallback
-        }
-        return "Registration failed. Please try again.";
-    }
-
     private void setLoading(boolean isLoading) {
+        isRegistering = isLoading;
         progressBar.setVisibility(isLoading ? View.VISIBLE : View.GONE);
         btnRegister.setEnabled(!isLoading);
         etName.setEnabled(!isLoading);
         etEmail.setEnabled(!isLoading);
         etPassword.setEnabled(!isLoading);
+        rbStudent.setEnabled(!isLoading);
+        rbAlumni.setEnabled(!isLoading);
     }
 
     private void showError(String msg) {

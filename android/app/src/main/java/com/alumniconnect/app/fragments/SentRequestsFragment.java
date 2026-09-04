@@ -18,6 +18,7 @@ import com.alumniconnect.app.R;
 import com.alumniconnect.app.adapters.MentorshipRequestAdapter;
 import com.alumniconnect.app.models.MentorshipRequest;
 import com.alumniconnect.app.repositories.MentorshipRepository;
+import com.alumniconnect.app.utils.ApiErrorUtils;
 import java.util.List;
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -35,6 +36,8 @@ public class SentRequestsFragment extends Fragment implements MentorshipRequestA
     private View layoutError;
     private TextView tvErrorMsg;
     private View btnRetry;
+
+    private boolean isActionInProgress = false;
 
     @Nullable
     @Override
@@ -102,7 +105,8 @@ public class SentRequestsFragment extends Fragment implements MentorshipRequestA
                         tvEmpty.setVisibility(View.GONE);
                     }
                 } else {
-                    showError("Failed to load sent requests (HTTP " + response.code() + ")");
+                    String error = ApiErrorUtils.getErrorMessage(response);
+                    showError(error);
                 }
             }
 
@@ -110,7 +114,8 @@ public class SentRequestsFragment extends Fragment implements MentorshipRequestA
             public void onFailure(Call<List<MentorshipRequest>> call, Throwable t) {
                 progressSent.setVisibility(View.GONE);
                 swipeRefresh.setRefreshing(false);
-                showError("Network error. Swipe down to retry.");
+                String error = ApiErrorUtils.getNetworkErrorMessage(t);
+                showError(error);
             }
         });
     }
@@ -135,27 +140,36 @@ public class SentRequestsFragment extends Fragment implements MentorshipRequestA
 
     @Override
     public void onComplete(MentorshipRequest request) {
+        if (isActionInProgress) return;
+
         new AlertDialog.Builder(requireContext())
                 .setTitle("Complete Mentorship")
                 .setMessage("Are you sure you want to mark this mentorship as completed?")
                 .setPositiveButton("Complete", (dialog, which) -> {
+                    if (isActionInProgress) return;
+                    isActionInProgress = true;
                     progressSent.setVisibility(View.VISIBLE);
+
                     mentorshipRepository.completeMentorshipRequest(request.getId()).enqueue(new Callback<MentorshipRequest>() {
                         @Override
                         public void onResponse(Call<MentorshipRequest> call, Response<MentorshipRequest> response) {
+                            isActionInProgress = false;
                             progressSent.setVisibility(View.GONE);
                             if (response.isSuccessful()) {
                                 Toast.makeText(requireContext(), "Mentorship marked as COMPLETED!", Toast.LENGTH_SHORT).show();
                                 loadSentRequests(false);
                             } else {
-                                Toast.makeText(requireContext(), "Failed to complete request.", Toast.LENGTH_SHORT).show();
+                                String error = ApiErrorUtils.getErrorMessage(response);
+                                Toast.makeText(requireContext(), error, Toast.LENGTH_LONG).show();
                             }
                         }
 
                         @Override
                         public void onFailure(Call<MentorshipRequest> call, Throwable t) {
+                            isActionInProgress = false;
                             progressSent.setVisibility(View.GONE);
-                            Toast.makeText(requireContext(), "Network error completing request.", Toast.LENGTH_SHORT).show();
+                            String error = ApiErrorUtils.getNetworkErrorMessage(t);
+                            Toast.makeText(requireContext(), error, Toast.LENGTH_LONG).show();
                         }
                     });
                 })

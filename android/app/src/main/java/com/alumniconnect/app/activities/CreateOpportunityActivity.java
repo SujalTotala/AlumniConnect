@@ -9,15 +9,14 @@ import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
-import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import com.alumniconnect.app.R;
 import com.alumniconnect.app.models.Opportunity;
 import com.alumniconnect.app.models.OpportunityCreateRequest;
 import com.alumniconnect.app.repositories.OpportunityRepository;
+import com.alumniconnect.app.utils.ApiErrorUtils;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
-import org.json.JSONObject;
 import java.util.Calendar;
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -32,6 +31,7 @@ public class CreateOpportunityActivity extends AppCompatActivity {
     private MaterialButton btnSubmit;
     private ProgressBar progressCo;
     private TextView tvError, tvSuccess;
+    private boolean isSubmitting = false;
 
     private final String[] oppTypes = {
             "Internship",
@@ -102,13 +102,15 @@ public class CreateOpportunityActivity extends AppCompatActivity {
     }
 
     private void submitOpportunity() {
-        String title = etTitle.getText().toString().trim();
-        String company = etCompany.getText().toString().trim();
-        String type = actvType.getText().toString().trim();
-        String location = etLocation.getText().toString().trim();
-        String url = etUrl.getText().toString().trim();
-        String deadline = etDeadline.getText().toString().trim();
-        String desc = etDesc.getText().toString().trim();
+        if (isSubmitting) return;
+
+        String title = etTitle.getText() != null ? etTitle.getText().toString().trim() : "";
+        String company = etCompany.getText() != null ? etCompany.getText().toString().trim() : "";
+        String type = actvType.getText() != null ? actvType.getText().toString().trim() : "";
+        String location = etLocation.getText() != null ? etLocation.getText().toString().trim() : "";
+        String url = etUrl.getText() != null ? etUrl.getText().toString().trim() : "";
+        String deadline = etDeadline.getText() != null ? etDeadline.getText().toString().trim() : "";
+        String desc = etDesc.getText() != null ? etDesc.getText().toString().trim() : "";
 
         if (TextUtils.isEmpty(title) || TextUtils.isEmpty(company) || TextUtils.isEmpty(desc)) {
             showError("Please fill out all required fields (*).");
@@ -124,12 +126,14 @@ public class CreateOpportunityActivity extends AppCompatActivity {
         req.setDeadline(deadline.isEmpty() ? null : deadline);
         req.setDescription(desc);
 
+        isSubmitting = true;
         setLoading(true);
         hideMessages();
 
         opportunityRepository.createOpportunity(req).enqueue(new Callback<Opportunity>() {
             @Override
             public void onResponse(Call<Opportunity> call, Response<Opportunity> response) {
+                isSubmitting = false;
                 setLoading(false);
                 if (response.isSuccessful()) {
                     showSuccess("Opportunity shared successfully!");
@@ -140,26 +144,25 @@ public class CreateOpportunityActivity extends AppCompatActivity {
                     etUrl.setText("");
                     etDeadline.setText("");
                     etDesc.setText("");
-                } else if (response.code() == 422) {
-                    showError("Validation error. Verify required format / fields.");
-                } else if (response.code() == 403) {
-                    showError("You do not have permission to post opportunities.");
                 } else {
-                    showError("Error: " + parseErrorDetail(response));
+                    String msg = ApiErrorUtils.getErrorMessage(response);
+                    showError(msg);
                 }
             }
 
             @Override
             public void onFailure(Call<Opportunity> call, Throwable t) {
+                isSubmitting = false;
                 setLoading(false);
-                showError("Network error: " + t.getMessage());
+                String msg = ApiErrorUtils.getNetworkErrorMessage(t);
+                showError(msg);
             }
         });
     }
 
     private void setLoading(boolean loading) {
-        progressCo.setVisibility(loading ? View.VISIBLE : View.GONE);
-        btnSubmit.setEnabled(!loading);
+        if (progressCo != null) progressCo.setVisibility(loading ? View.VISIBLE : View.GONE);
+        if (btnSubmit != null) btnSubmit.setEnabled(!loading);
     }
 
     private void showError(String msg) {
@@ -177,16 +180,5 @@ public class CreateOpportunityActivity extends AppCompatActivity {
     private void hideMessages() {
         tvError.setVisibility(View.GONE);
         tvSuccess.setVisibility(View.GONE);
-    }
-
-    private String parseErrorDetail(Response<?> response) {
-        try {
-            if (response.errorBody() != null) {
-                String json = response.errorBody().string();
-                JSONObject obj = new JSONObject(json);
-                if (obj.has("detail")) return obj.getString("detail");
-            }
-        } catch (Exception ignored) {}
-        return "Server rejected request (HTTP " + response.code() + ")";
     }
 }

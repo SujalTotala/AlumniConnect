@@ -12,10 +12,10 @@ import com.alumniconnect.app.R;
 import com.alumniconnect.app.models.ProfileResponse;
 import com.alumniconnect.app.models.ProfileUpdateRequest;
 import com.alumniconnect.app.repositories.ProfileRepository;
+import com.alumniconnect.app.utils.ApiErrorUtils;
 import com.alumniconnect.app.utils.SessionManager;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
-import org.json.JSONObject;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -24,6 +24,7 @@ public class EditProfileActivity extends AppCompatActivity {
     private ProfileRepository profileRepository;
     private SessionManager sessionManager;
     private String role;
+    private boolean isSaving = false;
 
     // Common fields
     private TextInputEditText etName, etSkills, etBio;
@@ -120,6 +121,8 @@ public class EditProfileActivity extends AppCompatActivity {
     }
 
     private void saveProfile() {
+        if (isSaving) return;
+
         String name = getText(etName);
         if (TextUtils.isEmpty(name)) {
             showError("Full name cannot be empty.");
@@ -146,12 +149,14 @@ public class EditProfileActivity extends AppCompatActivity {
             request.setInterests(getText(etInterests));
         }
 
+        isSaving = true;
         setLoading(true);
         hideMessages();
 
         profileRepository.updateMyProfile(request).enqueue(new Callback<ProfileResponse>() {
             @Override
             public void onResponse(Call<ProfileResponse> call, Response<ProfileResponse> response) {
+                isSaving = false;
                 setLoading(false);
                 if (response.isSuccessful() && response.body() != null) {
                     ProfileResponse updated = response.body();
@@ -164,34 +169,21 @@ public class EditProfileActivity extends AppCompatActivity {
                         u.setRole(updated.getRole());
                         sessionManager.saveSession(sessionManager.getToken(), u);
                     }
-                    showSuccess("Profile updated successfully! Changes are now live on Web too.");
-                } else if (response.code() == 401) {
-                    showError("Session expired. Please login again.");
-                } else if (response.code() == 422) {
-                    showError("Validation error. Check your input fields.");
+                    showSuccess("Profile updated successfully!");
                 } else {
-                    String msg = parseErrorMessage(response);
-                    showError("Save failed: " + msg);
+                    String msg = ApiErrorUtils.getErrorMessage(response);
+                    showError(msg);
                 }
             }
 
             @Override
             public void onFailure(Call<ProfileResponse> call, Throwable t) {
+                isSaving = false;
                 setLoading(false);
-                showError("Network error: " + t.getMessage());
+                String msg = ApiErrorUtils.getNetworkErrorMessage(t);
+                showError(msg);
             }
         });
-    }
-
-    private String parseErrorMessage(Response<?> response) {
-        try {
-            if (response.errorBody() != null) {
-                String json = response.errorBody().string();
-                JSONObject obj = new JSONObject(json);
-                if (obj.has("detail")) return obj.getString("detail");
-            }
-        } catch (Exception ignored) {}
-        return "Server error (HTTP " + response.code() + ")";
     }
 
     private void setLoading(boolean isLoading) {

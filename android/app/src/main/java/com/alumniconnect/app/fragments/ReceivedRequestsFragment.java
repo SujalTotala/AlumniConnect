@@ -19,6 +19,7 @@ import com.alumniconnect.app.R;
 import com.alumniconnect.app.adapters.MentorshipRequestAdapter;
 import com.alumniconnect.app.models.MentorshipRequest;
 import com.alumniconnect.app.repositories.MentorshipRepository;
+import com.alumniconnect.app.utils.ApiErrorUtils;
 import java.util.List;
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -36,6 +37,8 @@ public class ReceivedRequestsFragment extends Fragment implements MentorshipRequ
     private View layoutError;
     private TextView tvErrorMsg;
     private View btnRetry;
+
+    private boolean isActionInProgress = false;
 
     @Nullable
     @Override
@@ -103,7 +106,8 @@ public class ReceivedRequestsFragment extends Fragment implements MentorshipRequ
                         tvEmpty.setVisibility(View.GONE);
                     }
                 } else {
-                    showError("Failed to load received requests (HTTP " + response.code() + ")");
+                    String error = ApiErrorUtils.getErrorMessage(response);
+                    showError(error);
                 }
             }
 
@@ -111,7 +115,8 @@ public class ReceivedRequestsFragment extends Fragment implements MentorshipRequ
             public void onFailure(Call<List<MentorshipRequest>> call, Throwable t) {
                 progressReceived.setVisibility(View.GONE);
                 swipeRefresh.setRefreshing(false);
-                showError("Network error. Swipe down to retry.");
+                String error = ApiErrorUtils.getNetworkErrorMessage(t);
+                showError(error);
             }
         });
     }
@@ -126,37 +131,47 @@ public class ReceivedRequestsFragment extends Fragment implements MentorshipRequ
     // Callbacks from Adapter actions
     @Override
     public void onAccept(MentorshipRequest request) {
+        if (isActionInProgress) return;
         showResponseNoteDialog(request, true);
     }
 
     @Override
     public void onReject(MentorshipRequest request) {
+        if (isActionInProgress) return;
         showResponseNoteDialog(request, false);
     }
 
     @Override
     public void onComplete(MentorshipRequest request) {
+        if (isActionInProgress) return;
+
         new AlertDialog.Builder(requireContext())
                 .setTitle("Complete Mentorship")
                 .setMessage("Are you sure you want to mark this mentorship request as completed?")
                 .setPositiveButton("Complete", (dialog, which) -> {
+                    if (isActionInProgress) return;
+                    isActionInProgress = true;
                     progressReceived.setVisibility(View.VISIBLE);
                     mentorshipRepository.completeMentorshipRequest(request.getId()).enqueue(new Callback<MentorshipRequest>() {
                         @Override
                         public void onResponse(Call<MentorshipRequest> call, Response<MentorshipRequest> response) {
+                            isActionInProgress = false;
                             progressReceived.setVisibility(View.GONE);
                             if (response.isSuccessful()) {
                                 Toast.makeText(requireContext(), "Mentorship completed successfully!", Toast.LENGTH_SHORT).show();
                                 loadReceivedRequests(false);
                             } else {
-                                Toast.makeText(requireContext(), "Failed to complete request.", Toast.LENGTH_SHORT).show();
+                                String error = ApiErrorUtils.getErrorMessage(response);
+                                Toast.makeText(requireContext(), error, Toast.LENGTH_LONG).show();
                             }
                         }
 
                         @Override
                         public void onFailure(Call<MentorshipRequest> call, Throwable t) {
+                            isActionInProgress = false;
                             progressReceived.setVisibility(View.GONE);
-                            Toast.makeText(requireContext(), "Network error completing request.", Toast.LENGTH_SHORT).show();
+                            String error = ApiErrorUtils.getNetworkErrorMessage(t);
+                            Toast.makeText(requireContext(), error, Toast.LENGTH_LONG).show();
                         }
                     });
                 })
@@ -174,12 +189,16 @@ public class ReceivedRequestsFragment extends Fragment implements MentorshipRequ
         builder.setView(input);
 
         builder.setPositiveButton(isAccept ? "Accept" : "Reject", (dialog, which) -> {
+            if (isActionInProgress) return;
+            isActionInProgress = true;
+
             String note = input.getText().toString().trim();
             progressReceived.setVisibility(View.VISIBLE);
 
             Callback<MentorshipRequest> apiCallback = new Callback<MentorshipRequest>() {
                 @Override
                 public void onResponse(Call<MentorshipRequest> call, Response<MentorshipRequest> response) {
+                    isActionInProgress = false;
                     progressReceived.setVisibility(View.GONE);
                     if (response.isSuccessful()) {
                         Toast.makeText(requireContext(), 
@@ -187,14 +206,17 @@ public class ReceivedRequestsFragment extends Fragment implements MentorshipRequ
                                 Toast.LENGTH_SHORT).show();
                         loadReceivedRequests(false);
                     } else {
-                        Toast.makeText(requireContext(), "Failed to update request status.", Toast.LENGTH_SHORT).show();
+                        String error = ApiErrorUtils.getErrorMessage(response);
+                        Toast.makeText(requireContext(), error, Toast.LENGTH_LONG).show();
                     }
                 }
 
                 @Override
                 public void onFailure(Call<MentorshipRequest> call, Throwable t) {
+                    isActionInProgress = false;
                     progressReceived.setVisibility(View.GONE);
-                    Toast.makeText(requireContext(), "Network error updating status.", Toast.LENGTH_SHORT).show();
+                    String error = ApiErrorUtils.getNetworkErrorMessage(t);
+                    Toast.makeText(requireContext(), error, Toast.LENGTH_LONG).show();
                 }
             };
 

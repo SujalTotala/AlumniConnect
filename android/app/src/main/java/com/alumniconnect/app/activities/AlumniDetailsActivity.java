@@ -1,11 +1,15 @@
 package com.alumniconnect.app.activities;
 
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
@@ -15,11 +19,9 @@ import com.alumniconnect.app.models.MentorshipRequest;
 import com.alumniconnect.app.models.MentorshipRequestCreate;
 import com.alumniconnect.app.repositories.AlumniRepository;
 import com.alumniconnect.app.repositories.MentorshipRepository;
+import com.alumniconnect.app.utils.ApiErrorUtils;
 import com.alumniconnect.app.utils.SessionManager;
 import com.google.android.material.button.MaterialButton;
-import android.app.AlertDialog;
-import android.widget.EditText;
-import org.json.JSONObject;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -29,6 +31,13 @@ public class AlumniDetailsActivity extends AppCompatActivity {
     private AlumniRepository alumniRepository;
     private MentorshipRepository mentorshipRepository;
     private SessionManager sessionManager;
+
+    // State Layouts
+    private View layoutContent;
+    private ProgressBar progressDetail;
+    private View layoutError;
+    private TextView tvErrorMsg;
+    private MaterialButton btnRetry;
 
     // Header
     private TextView tvDetailInitials, tvDetailName, tvDetailHeadline, tvDetailMentorBadge;
@@ -41,6 +50,7 @@ public class AlumniDetailsActivity extends AppCompatActivity {
     private MaterialButton btnLinkedin, btnGithub, btnRequestMentorship;
 
     private int alumniId;
+    private boolean isSendingRequest = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,11 +61,17 @@ public class AlumniDetailsActivity extends AppCompatActivity {
         mentorshipRepository = new MentorshipRepository(this);
         sessionManager = new SessionManager(this);
 
-        // Support back arrow
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
             getSupportActionBar().setTitle("Alumni Profile");
         }
+
+        // State views
+        layoutContent = findViewById(R.id.layout_alumni_content);
+        progressDetail = findViewById(R.id.progress_alumni_detail);
+        layoutError = findViewById(R.id.layout_alumni_detail_error);
+        tvErrorMsg = findViewById(R.id.tv_alumni_detail_error_msg);
+        btnRetry = findViewById(R.id.btn_alumni_detail_retry);
 
         // Bind views
         tvDetailInitials = findViewById(R.id.tv_detail_initials);
@@ -82,21 +98,21 @@ public class AlumniDetailsActivity extends AppCompatActivity {
         btnGithub = findViewById(R.id.btn_github);
         btnRequestMentorship = findViewById(R.id.btn_request_mentorship);
 
-        // Get the alumni ID from intent
         alumniId = getIntent().getIntExtra("alumni_id", -1);
         String name = getIntent().getStringExtra("alumni_name");
 
-        // Set a placeholder name while loading
         if (Alumni.hasValue(name)) {
             tvDetailName.setText(name);
             tvDetailInitials.setText(getInitials(name));
         }
 
         if (alumniId == -1) {
-            Toast.makeText(this, "Invalid alumni record", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Invalid alumni record.", Toast.LENGTH_SHORT).show();
             finish();
             return;
         }
+
+        btnRetry.setOnClickListener(v -> fetchAlumniDetails());
 
         fetchAlumniDetails();
     }
@@ -111,36 +127,49 @@ public class AlumniDetailsActivity extends AppCompatActivity {
     }
 
     private void fetchAlumniDetails() {
+        showLoadingState();
+
         alumniRepository.getAlumniById(alumniId).enqueue(new Callback<Alumni>() {
             @Override
             public void onResponse(Call<Alumni> call, Response<Alumni> response) {
                 if (response.isSuccessful() && response.body() != null) {
+                    showSuccessState();
                     renderAlumni(response.body());
                 } else if (response.code() == 404) {
-                    Toast.makeText(AlumniDetailsActivity.this,
-                            "Alumni record not found.", Toast.LENGTH_SHORT).show();
-                    finish();
-                } else if (response.code() == 401) {
-                    Toast.makeText(AlumniDetailsActivity.this,
-                            "Session expired.", Toast.LENGTH_SHORT).show();
-                    finish();
+                    showErrorState("Alumni record not found.");
                 } else {
-                    Toast.makeText(AlumniDetailsActivity.this,
-                            "Error loading profile (HTTP " + response.code() + ")",
-                            Toast.LENGTH_SHORT).show();
+                    String errorMsg = ApiErrorUtils.parseError(response);
+                    showErrorState(errorMsg);
                 }
             }
 
             @Override
             public void onFailure(Call<Alumni> call, Throwable t) {
-                Toast.makeText(AlumniDetailsActivity.this,
-                        "Network error. Please try again.", Toast.LENGTH_SHORT).show();
+                showErrorState(ApiErrorUtils.parseThrowable(t));
             }
         });
     }
 
+    private void showLoadingState() {
+        if (progressDetail != null) progressDetail.setVisibility(View.VISIBLE);
+        if (layoutContent != null) layoutContent.setVisibility(View.GONE);
+        if (layoutError != null) layoutError.setVisibility(View.GONE);
+    }
+
+    private void showSuccessState() {
+        if (progressDetail != null) progressDetail.setVisibility(View.GONE);
+        if (layoutContent != null) layoutContent.setVisibility(View.VISIBLE);
+        if (layoutError != null) layoutError.setVisibility(View.GONE);
+    }
+
+    private void showErrorState(String message) {
+        if (progressDetail != null) progressDetail.setVisibility(View.GONE);
+        if (layoutContent != null) layoutContent.setVisibility(View.GONE);
+        if (layoutError != null) layoutError.setVisibility(View.VISIBLE);
+        if (tvErrorMsg != null) tvErrorMsg.setText(message);
+    }
+
     private void renderAlumni(Alumni alumni) {
-        // Header
         tvDetailInitials.setText(alumni.getInitials());
         tvDetailName.setText(alumni.getDisplayName());
 
@@ -158,7 +187,6 @@ public class AlumniDetailsActivity extends AppCompatActivity {
             tvDetailMentorBadge.setVisibility(View.GONE);
         }
 
-        // Field rows — only shown when data exists
         showRow(rowEmail, tvDetailEmail, alumni.getEmail());
         showRow(rowDept, tvDetailDept, alumni.getDepartment());
         showRow(rowYear, tvDetailYear, alumni.getGraduationYear());
@@ -168,7 +196,6 @@ public class AlumniDetailsActivity extends AppCompatActivity {
         showRow(rowSkills, tvDetailSkills, alumni.getSkills());
         showRow(rowBio, tvDetailBio, alumni.getBio());
 
-        // LinkedIn button
         if (Alumni.hasValue(alumni.getLinkedinUrl())) {
             btnLinkedin.setVisibility(View.VISIBLE);
             btnLinkedin.setOnClickListener(v -> openUrl(alumni.getLinkedinUrl()));
@@ -176,7 +203,6 @@ public class AlumniDetailsActivity extends AppCompatActivity {
             btnLinkedin.setVisibility(View.GONE);
         }
 
-        // GitHub button
         if (Alumni.hasValue(alumni.getGithubUrl())) {
             btnGithub.setVisibility(View.VISIBLE);
             btnGithub.setOnClickListener(v -> openUrl(alumni.getGithubUrl()));
@@ -184,7 +210,6 @@ public class AlumniDetailsActivity extends AppCompatActivity {
             btnGithub.setVisibility(View.GONE);
         }
 
-        // Mentorship request button (Student viewing an available mentor)
         String currentRole = sessionManager.getUserRole();
         if ("student".equalsIgnoreCase(currentRole) && alumni.isMentorshipAvailable()) {
             btnRequestMentorship.setVisibility(View.VISIBLE);
@@ -195,20 +220,35 @@ public class AlumniDetailsActivity extends AppCompatActivity {
     }
 
     private void showSendRequestDialog(Alumni mentor) {
+        if (isSendingRequest) return;
+
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Request Mentorship from " + mentor.getDisplayName());
 
         final EditText input = new EditText(this);
         input.setHint("Introduce yourself and write your message...");
-        input.setPadding(32, 16, 32, 16);
+        input.setPadding(36, 24, 36, 24);
         builder.setView(input);
 
-        builder.setPositiveButton("Send", (dialog, which) -> {
+        builder.setPositiveButton("Send", null);
+        builder.setNegativeButton("Cancel", null);
+
+        AlertDialog dialog = builder.create();
+        dialog.show();
+
+        // Custom click listener to validate and disable button while network call runs
+        Button positiveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        positiveButton.setOnClickListener(v -> {
             String msg = input.getText().toString().trim();
             if (msg.isEmpty()) {
-                Toast.makeText(this, "Message cannot be empty.", Toast.LENGTH_SHORT).show();
+                input.setError("Message cannot be empty.");
                 return;
             }
+
+            if (isSendingRequest) return;
+            isSendingRequest = true;
+            positiveButton.setEnabled(false);
+            input.setEnabled(false);
 
             int targetId = mentor.getUserId() != null ? mentor.getUserId() : mentor.getId();
             MentorshipRequestCreate req = new MentorshipRequestCreate(targetId, msg);
@@ -216,43 +256,29 @@ public class AlumniDetailsActivity extends AppCompatActivity {
             mentorshipRepository.sendMentorshipRequest(req).enqueue(new Callback<MentorshipRequest>() {
                 @Override
                 public void onResponse(Call<MentorshipRequest> call, Response<MentorshipRequest> response) {
+                    isSendingRequest = false;
+                    dialog.dismiss();
+
                     if (response.isSuccessful()) {
                         Toast.makeText(AlumniDetailsActivity.this, "Mentorship request sent successfully!", Toast.LENGTH_LONG).show();
-                    } else if (response.code() == 400) {
-                        String detail = parseErrorDetail(response);
-                        if (detail.contains("already exists")) {
-                            Toast.makeText(AlumniDetailsActivity.this, "You already have an active mentorship request with this mentor.", Toast.LENGTH_LONG).show();
-                        } else {
-                            Toast.makeText(AlumniDetailsActivity.this, detail, Toast.LENGTH_LONG).show();
-                        }
                     } else {
-                        Toast.makeText(AlumniDetailsActivity.this, "Failed to send request. HTTP " + response.code(), Toast.LENGTH_SHORT).show();
+                        String errorMsg = ApiErrorUtils.parseError(response);
+                        Toast.makeText(AlumniDetailsActivity.this, errorMsg, Toast.LENGTH_LONG).show();
                     }
                 }
 
                 @Override
                 public void onFailure(Call<MentorshipRequest> call, Throwable t) {
-                    Toast.makeText(AlumniDetailsActivity.this, "Network error sending request.", Toast.LENGTH_SHORT).show();
+                    isSendingRequest = false;
+                    positiveButton.setEnabled(true);
+                    input.setEnabled(true);
+                    String errorMsg = ApiErrorUtils.parseThrowable(t);
+                    Toast.makeText(AlumniDetailsActivity.this, errorMsg, Toast.LENGTH_LONG).show();
                 }
             });
         });
-
-        builder.setNegativeButton("Cancel", null);
-        builder.show();
     }
 
-    private String parseErrorDetail(Response<?> response) {
-        try {
-            if (response.errorBody() != null) {
-                String json = response.errorBody().string();
-                JSONObject obj = new JSONObject(json);
-                if (obj.has("detail")) return obj.getString("detail");
-            }
-        } catch (Exception ignored) {}
-        return "Request rejected by server.";
-    }
-
-    /** Show a field row only when value is non-null and non-empty */
     private void showRow(LinearLayout row, TextView valueView, String value) {
         if (Alumni.hasValue(value)) {
             valueView.setText(value);
@@ -262,7 +288,6 @@ public class AlumniDetailsActivity extends AppCompatActivity {
         }
     }
 
-    /** Open a URL with Intent.ACTION_VIEW — validates before launching */
     private void openUrl(String url) {
         if (url == null || url.trim().isEmpty()) return;
         try {

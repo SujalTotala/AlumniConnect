@@ -3,6 +3,7 @@ package com.alumniconnect.app.activities;
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.util.Patterns;
 import android.view.View;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -12,10 +13,10 @@ import com.alumniconnect.app.models.LoginRequest;
 import com.alumniconnect.app.models.LoginResponse;
 import com.alumniconnect.app.network.ApiClient;
 import com.alumniconnect.app.network.ApiService;
+import com.alumniconnect.app.utils.ApiErrorUtils;
 import com.alumniconnect.app.utils.SessionManager;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
-import org.json.JSONObject;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -26,6 +27,7 @@ public class LoginActivity extends AppCompatActivity {
     private ProgressBar progressBar;
     private TextView tvError, tvGotoRegister;
     private SessionManager sessionManager;
+    private boolean isLoggingIn = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -41,6 +43,9 @@ public class LoginActivity extends AppCompatActivity {
         tvError = findViewById(R.id.tv_error);
         tvGotoRegister = findViewById(R.id.tv_goto_register);
 
+        // Handle incoming session expired or logout message
+        handleIncomingIntent(getIntent());
+
         btnLogin.setOnClickListener(v -> performLogin());
 
         tvGotoRegister.setOnClickListener(v -> {
@@ -48,17 +53,46 @@ public class LoginActivity extends AppCompatActivity {
         });
     }
 
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIncomingIntent(intent);
+    }
+
+    private void handleIncomingIntent(Intent intent) {
+        if (intent == null) return;
+
+        if (intent.getBooleanExtra("session_expired", false)) {
+            showError("Your session has expired. Please log in again.");
+            intent.removeExtra("session_expired");
+        } else if (intent.hasExtra("error_message")) {
+            String msg = intent.getStringExtra("error_message");
+            if (msg != null && !msg.isEmpty()) {
+                showError(msg);
+            }
+            intent.removeExtra("error_message");
+        }
+    }
+
     private void performLogin() {
+        if (isLoggingIn) return; // Prevent duplicate rapid submission
+
         String email = etEmail.getText() != null ? etEmail.getText().toString().trim() : "";
         String password = etPassword.getText() != null ? etPassword.getText().toString().trim() : "";
 
         if (TextUtils.isEmpty(email)) {
-            showError("Please enter your email address");
+            showError("Please enter your email address.");
+            return;
+        }
+
+        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+            showError("Please enter a valid email address.");
             return;
         }
 
         if (TextUtils.isEmpty(password)) {
-            showError("Please enter your password");
+            showError("Please enter your password.");
             return;
         }
 
@@ -76,10 +110,10 @@ public class LoginActivity extends AppCompatActivity {
                         sessionManager.saveSession(loginResponse.getAccessToken(), loginResponse.getUser());
                         navigateToMain();
                     } else {
-                        showError("Login response missing access token");
+                        showError("Login succeeded but no access token was returned.");
                     }
                 } else {
-                    String errorMsg = parseErrorMessage(response);
+                    String errorMsg = ApiErrorUtils.parseError(response);
                     showError(errorMsg);
                 }
             }
@@ -87,27 +121,13 @@ public class LoginActivity extends AppCompatActivity {
             @Override
             public void onFailure(Call<LoginResponse> call, Throwable t) {
                 setLoading(false);
-                showError("Unable to connect to server: " + t.getMessage());
+                showError(ApiErrorUtils.parseThrowable(t));
             }
         });
     }
 
-    private String parseErrorMessage(Response<?> response) {
-        try {
-            if (response.errorBody() != null) {
-                String errorJson = response.errorBody().string();
-                JSONObject jsonObject = new JSONObject(errorJson);
-                if (jsonObject.has("detail")) {
-                    return jsonObject.getString("detail");
-                }
-            }
-        } catch (Exception e) {
-            // Fallback
-        }
-        return "Invalid email or password";
-    }
-
     private void setLoading(boolean isLoading) {
+        isLoggingIn = isLoading;
         progressBar.setVisibility(isLoading ? View.VISIBLE : View.GONE);
         btnLogin.setEnabled(!isLoading);
         etEmail.setEnabled(!isLoading);

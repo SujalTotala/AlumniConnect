@@ -15,9 +15,9 @@ import com.alumniconnect.app.R;
 import com.alumniconnect.app.models.Event;
 import com.alumniconnect.app.models.EventCreateRequest;
 import com.alumniconnect.app.repositories.EventRepository;
+import com.alumniconnect.app.utils.ApiErrorUtils;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
-import org.json.JSONObject;
 import java.util.Calendar;
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -32,6 +32,7 @@ public class CreateEventActivity extends AppCompatActivity {
     private MaterialButton btnSubmit;
     private ProgressBar progressCe;
     private TextView tvError, tvSuccess;
+    private boolean isSubmitting = false;
 
     private final String[] eventTypes = {
             "Alumni Meet",
@@ -120,13 +121,15 @@ public class CreateEventActivity extends AppCompatActivity {
     }
 
     private void submitEvent() {
-        String title = etTitle.getText().toString().trim();
-        String desc = etDesc.getText().toString().trim();
-        String type = actvType.getText().toString().trim();
-        String date = etDate.getText().toString().trim();
-        String time = etTime.getText().toString().trim();
-        String location = etLocation.getText().toString().trim();
-        String url = etUrl.getText().toString().trim();
+        if (isSubmitting) return;
+
+        String title = etTitle.getText() != null ? etTitle.getText().toString().trim() : "";
+        String desc = etDesc.getText() != null ? etDesc.getText().toString().trim() : "";
+        String type = actvType.getText() != null ? actvType.getText().toString().trim() : "";
+        String date = etDate.getText() != null ? etDate.getText().toString().trim() : "";
+        String time = etTime.getText() != null ? etTime.getText().toString().trim() : "";
+        String location = etLocation.getText() != null ? etLocation.getText().toString().trim() : "";
+        String url = etUrl.getText() != null ? etUrl.getText().toString().trim() : "";
 
         if (TextUtils.isEmpty(title) || TextUtils.isEmpty(desc) || TextUtils.isEmpty(date) || TextUtils.isEmpty(location)) {
             showError("Please fill out all required fields (*).");
@@ -142,12 +145,14 @@ public class CreateEventActivity extends AppCompatActivity {
         req.setLocation(location);
         req.setMeetingUrl(url.isEmpty() ? null : url);
 
+        isSubmitting = true;
         setLoading(true);
         hideMessages();
 
         eventRepository.createEvent(req).enqueue(new Callback<Event>() {
             @Override
             public void onResponse(Call<Event> call, Response<Event> response) {
+                isSubmitting = false;
                 setLoading(false);
                 if (response.isSuccessful()) {
                     showSuccess("Event created successfully!");
@@ -158,24 +163,25 @@ public class CreateEventActivity extends AppCompatActivity {
                     etTime.setText("");
                     etLocation.setText("");
                     etUrl.setText("");
-                } else if (response.code() == 422) {
-                    showError("Validation error. Please verify input fields.");
                 } else {
-                    String msg = parseErrorDetail(response);
-                    showError("Error: " + msg);
+                    String msg = ApiErrorUtils.getErrorMessage(response);
+                    showError(msg);
                 }
             }
 
             @Override
             public void onFailure(Call<Event> call, Throwable t) {
+                isSubmitting = false;
                 setLoading(false);
-                showError("Network error: " + t.getMessage());
+                String msg = ApiErrorUtils.getNetworkErrorMessage(t);
+                showError(msg);
             }
         });
     }
 
     private void setLoading(boolean loading) {
-        progressCe.setVisibility(loading ? View.VISIBLE : View.GONE);
+        progressCe = findViewById(R.id.progress_ce);
+        if (progressCe != null) progressCe.setVisibility(loading ? View.VISIBLE : View.GONE);
         btnSubmit.setEnabled(!loading);
     }
 
@@ -194,16 +200,5 @@ public class CreateEventActivity extends AppCompatActivity {
     private void hideMessages() {
         tvError.setVisibility(View.GONE);
         tvSuccess.setVisibility(View.GONE);
-    }
-
-    private String parseErrorDetail(Response<?> response) {
-        try {
-            if (response.errorBody() != null) {
-                String json = response.errorBody().string();
-                JSONObject obj = new JSONObject(json);
-                if (obj.has("detail")) return obj.getString("detail");
-            }
-        } catch (Exception ignored) {}
-        return "Server rejected request (HTTP " + response.code() + ")";
     }
 }

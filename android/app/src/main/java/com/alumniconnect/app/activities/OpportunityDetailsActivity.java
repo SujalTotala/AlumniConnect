@@ -8,12 +8,14 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import com.alumniconnect.app.R;
 import com.alumniconnect.app.models.Opportunity;
 import com.alumniconnect.app.repositories.OpportunityRepository;
+import com.alumniconnect.app.utils.ApiErrorUtils;
 import com.alumniconnect.app.utils.SessionManager;
 import com.google.android.material.button.MaterialButton;
 import java.util.Map;
@@ -28,8 +30,16 @@ public class OpportunityDetailsActivity extends AppCompatActivity {
 
     private int opportunityId;
     private Opportunity currentOpp;
+    private boolean isDeleting = false;
 
-    // UI
+    // Root State Containers
+    private ScrollView scrollOppContent;
+    private ProgressBar progressOppDetail;
+    private LinearLayout layoutOppDetailError;
+    private TextView tvOppDetailErrorMsg;
+    private MaterialButton btnOppDetailRetry;
+
+    // UI elements
     private TextView tvTitle, tvCompany, tvTypeLabel;
     private TextView tvLocation, tvDeadline, tvPoster, tvDescription;
     private LinearLayout rowLocation, rowDeadline;
@@ -49,6 +59,14 @@ public class OpportunityDetailsActivity extends AppCompatActivity {
             getSupportActionBar().setTitle("Opportunity Details");
         }
 
+        // State views
+        scrollOppContent = findViewById(R.id.scroll_opp_content);
+        progressOppDetail = findViewById(R.id.progress_opp_detail);
+        layoutOppDetailError = findViewById(R.id.layout_opp_detail_error);
+        tvOppDetailErrorMsg = findViewById(R.id.tv_opp_detail_error_msg);
+        btnOppDetailRetry = findViewById(R.id.btn_opp_detail_retry);
+
+        // Content views
         tvTitle = findViewById(R.id.tv_od_title);
         tvCompany = findViewById(R.id.tv_od_company);
         tvTypeLabel = findViewById(R.id.tv_od_type_label);
@@ -80,6 +98,7 @@ public class OpportunityDetailsActivity extends AppCompatActivity {
 
         btnApply.setOnClickListener(v -> applyToOpportunity());
         btnDelete.setOnClickListener(v -> confirmDeletion());
+        btnOppDetailRetry.setOnClickListener(v -> fetchOpportunityDetails());
 
         fetchOpportunityDetails();
     }
@@ -93,21 +112,48 @@ public class OpportunityDetailsActivity extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
+    private void showLoadingState() {
+        if (progressOppDetail != null) progressOppDetail.setVisibility(View.VISIBLE);
+        if (scrollOppContent != null) scrollOppContent.setVisibility(View.GONE);
+        if (layoutOppDetailError != null) layoutOppDetailError.setVisibility(View.GONE);
+    }
+
+    private void showSuccessState() {
+        if (progressOppDetail != null) progressOppDetail.setVisibility(View.GONE);
+        if (scrollOppContent != null) scrollOppContent.setVisibility(View.VISIBLE);
+        if (layoutOppDetailError != null) layoutOppDetailError.setVisibility(View.GONE);
+    }
+
+    private void showErrorState(String message) {
+        if (progressOppDetail != null) progressOppDetail.setVisibility(View.GONE);
+        if (scrollOppContent != null) scrollOppContent.setVisibility(View.GONE);
+        if (layoutOppDetailError != null) {
+            layoutOppDetailError.setVisibility(View.VISIBLE);
+            if (tvOppDetailErrorMsg != null) {
+                tvOppDetailErrorMsg.setText(message != null ? message : "Unable to load opportunity details.");
+            }
+        }
+    }
+
     private void fetchOpportunityDetails() {
+        showLoadingState();
         opportunityRepository.getOpportunityById(opportunityId).enqueue(new Callback<Opportunity>() {
             @Override
             public void onResponse(Call<Opportunity> call, Response<Opportunity> response) {
                 if (response.isSuccessful() && response.body() != null) {
                     currentOpp = response.body();
                     renderOpportunity(currentOpp);
+                    showSuccessState();
                 } else {
-                    Toast.makeText(OpportunityDetailsActivity.this, "Failed to load opportunity details.", Toast.LENGTH_SHORT).show();
+                    String errorMsg = ApiErrorUtils.getErrorMessage(response);
+                    showErrorState(errorMsg);
                 }
             }
 
             @Override
             public void onFailure(Call<Opportunity> call, Throwable t) {
-                Toast.makeText(OpportunityDetailsActivity.this, "Network error loading details.", Toast.LENGTH_SHORT).show();
+                String errorMsg = ApiErrorUtils.getNetworkErrorMessage(t);
+                showErrorState(errorMsg);
             }
         });
     }
@@ -158,6 +204,7 @@ public class OpportunityDetailsActivity extends AppCompatActivity {
 
         if ("admin".equals(userRole) || isCreator) {
             btnDelete.setVisibility(View.VISIBLE);
+            btnDelete.setEnabled(true);
         } else {
             btnDelete.setVisibility(View.GONE);
         }
@@ -176,6 +223,7 @@ public class OpportunityDetailsActivity extends AppCompatActivity {
     }
 
     private void confirmDeletion() {
+        if (isDeleting) return;
         new AlertDialog.Builder(this)
                 .setTitle("Delete Opportunity")
                 .setMessage("Are you sure you want to delete this career post?")
@@ -185,30 +233,37 @@ public class OpportunityDetailsActivity extends AppCompatActivity {
     }
 
     private void deletePost() {
+        if (isDeleting) return;
+        isDeleting = true;
+
+        btnDelete.setEnabled(false);
         btnDelete.setVisibility(View.GONE);
         progressDelete.setVisibility(View.VISIBLE);
 
         opportunityRepository.deleteOpportunity(opportunityId).enqueue(new Callback<Map<String, Object>>() {
             @Override
             public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> response) {
+                isDeleting = false;
                 progressDelete.setVisibility(View.GONE);
                 if (response.isSuccessful()) {
                     Toast.makeText(OpportunityDetailsActivity.this, "Opportunity deleted successfully.", Toast.LENGTH_SHORT).show();
                     finish();
-                } else if (response.code() == 403) {
-                    Toast.makeText(OpportunityDetailsActivity.this, "You do not have permission to perform this action.", Toast.LENGTH_LONG).show();
-                    btnDelete.setVisibility(View.VISIBLE);
                 } else {
-                    Toast.makeText(OpportunityDetailsActivity.this, "Failed to delete post. HTTP " + response.code(), Toast.LENGTH_SHORT).show();
+                    btnDelete.setEnabled(true);
                     btnDelete.setVisibility(View.VISIBLE);
+                    String error = ApiErrorUtils.getErrorMessage(response);
+                    Toast.makeText(OpportunityDetailsActivity.this, error, Toast.LENGTH_LONG).show();
                 }
             }
 
             @Override
             public void onFailure(Call<Map<String, Object>> call, Throwable t) {
+                isDeleting = false;
                 progressDelete.setVisibility(View.GONE);
+                btnDelete.setEnabled(true);
                 btnDelete.setVisibility(View.VISIBLE);
-                Toast.makeText(OpportunityDetailsActivity.this, "Network error deleting post.", Toast.LENGTH_SHORT).show();
+                String error = ApiErrorUtils.getNetworkErrorMessage(t);
+                Toast.makeText(OpportunityDetailsActivity.this, error, Toast.LENGTH_LONG).show();
             }
         });
     }
