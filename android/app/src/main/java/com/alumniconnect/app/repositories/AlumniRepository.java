@@ -2,6 +2,7 @@ package com.alumniconnect.app.repositories;
 
 import android.content.Context;
 import com.alumniconnect.app.models.Alumni;
+import com.alumniconnect.app.models.MentorRecommendation;
 import com.alumniconnect.app.network.ApiClient;
 import com.alumniconnect.app.network.ApiService;
 import java.util.List;
@@ -23,19 +24,27 @@ public class AlumniRepository {
             String department,
             String graduationYear,
             String company,
+            String jobRole,
             String location,
-            Boolean mentorshipAvailable
+            String skills,
+            Boolean mentorshipAvailable,
+            Boolean isVerified
     ) {
-        return apiService.getAlumni(search, department, graduationYear, company, location, mentorshipAvailable);
+        return apiService.getAlumni(search, department, graduationYear, company, jobRole, location, skills, mentorshipAvailable, isVerified);
     }
 
     /** Fetch all alumni with no filters */
     public Call<List<Alumni>> getAllAlumni() {
-        return apiService.getAlumni(null, null, null, null, null, null);
+        return apiService.getAlumni(null, null, null, null, null, null, null, null, null);
     }
 
     /** Fetch a single alumni by their database ID */
     public Call<Alumni> getAlumniById(int alumniId) {
         return apiService.getAlumniById(alumniId);
+    }
+
+    /** Fetch personalized mentor recommendations */
+    public Call<List<MentorRecommendation>> getRecommendedMentors() {
+        return apiService.getRecommendedMentors();
     }
 }

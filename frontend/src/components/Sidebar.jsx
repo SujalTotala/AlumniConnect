@@ -25,6 +25,7 @@ const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
     { path: "/mentorship", label: "Mentorship", icon: "🎓" },
     { path: "/opportunities", label: "Opportunities", icon: "💼" },
     { path: "/notifications", label: "Notifications", icon: "🔔" },
+    { path: "/saved", label: "Saved Items", icon: "🔖" },
     { path: "/profile", label: "My Profile", icon: "👤" },
   ];
 

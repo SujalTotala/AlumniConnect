@@ -70,11 +70,27 @@
 
             </LinearLayout>
 
+            <!-- Verified badge -->
+            <TextView
+                android:id="@+id/tv_verified_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_badge_blue"
+                android:paddingHorizontal="6dp"
+                android:paddingVertical="3dp"
+                android:text="✓ VERIFIED"
+                android:textColor="@color/white"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
             <!-- Mentorship badge -->
             <TextView
                 android:id="@+id/tv_mentorship_badge"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
                 android:background="@drawable/bg_badge_green"
                 android:paddingHorizontal="8dp"
                 android:paddingVertical="3dp"
@@ -83,6 +99,19 @@
                 android:textSize="9sp"
                 android:textStyle="bold"
                 android:visibility="gone" />
+
+            <!-- Bookmark Button -->
+            <TextView
+                android:id="@+id/tv_alumni_bookmark"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:gravity="center"
+                android:text="☆"
+                android:textColor="#F59E0B"
+                android:textSize="18sp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true" />
 
         </LinearLayout>
 

@@ -6,4 +6,5 @@ export const alumniApi = {
   createAlumni: (data) => API.post("/alumni/", data),
   updateAlumni: (id, data) => API.put(`/alumni/${id}`, data),
   deleteAlumni: (id) => API.delete(`/alumni/${id}`),
+  getRecommendedMentors: () => API.get("/alumni/recommendations/mentors"),
 };

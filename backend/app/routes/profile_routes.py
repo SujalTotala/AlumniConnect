@@ -121,3 +121,61 @@ def update_my_profile(
     db.refresh(current_user)
 
     return get_my_profile(current_user=current_user, db=db)
+
+@router.get("/completion-suggestions")
+def get_profile_completion_suggestions(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    missing_fields = []
+    total_fields = 0
+    filled_fields = 0
+
+    if current_user.role.lower() == "student":
+        student = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).first()
+        fields = [
+            ("branch", "Academic Branch / Department", student.branch if student else None),
+            ("year", "Graduation / Study Year", student.year if student else None),
+            ("skills", "Core Skills", student.skills if student else None),
+            ("interests", "Career Interests", student.interests if student else None),
+            ("bio", "Short Bio / Summary", student.bio if student else None),
+        ]
+        total_fields = len(fields)
+        for field_key, label, val in fields:
+            if val and str(val).strip():
+                filled_fields += 1
+            else:
+                missing_fields.append({"field": field_key, "label": label})
+
+    elif current_user.role.lower() == "alumni":
+        alumni = db.query(Alumni).filter(
+            (Alumni.user_id == current_user.id) | (Alumni.email == current_user.email)
+        ).first()
+        fields = [
+            ("graduation_year", "Graduation Year", alumni.graduation_year if alumni else None),
+            ("department", "Academic Department", alumni.department if alumni else None),
+            ("company", "Current Company / Organization", alumni.company if alumni else None),
+            ("job_role", "Job Title / Role", alumni.job_role if alumni else None),
+            ("location", "Location / City", alumni.location if alumni else None),
+            ("skills", "Professional Skills", alumni.skills if alumni else None),
+            ("bio", "Professional Summary / Bio", alumni.bio if alumni else None),
+            ("linkedin_url", "LinkedIn Profile URL", alumni.linkedin_url if alumni else None),
+        ]
+        total_fields = len(fields)
+        for field_key, label, val in fields:
+            if val and str(val).strip():
+                filled_fields += 1
+            else:
+                missing_fields.append({"field": field_key, "label": label})
+    else:
+        total_fields = 1
+        filled_fields = 1
+
+    percentage = round((filled_fields / max(total_fields, 1)) * 100)
+
+    return {
+        "completion_percentage": percentage,
+        "filled_count": filled_fields,
+        "total_count": total_fields,
+        "missing_fields": missing_fields,
+    }

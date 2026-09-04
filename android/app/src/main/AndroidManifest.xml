@@ -84,6 +84,12 @@
             android:theme="@style/Theme.AlumniConnect.NoActionBar"
             android:parentActivityName=".activities.MainActivity" />
 
+        <activity
+            android:name=".activities.SavedItemsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AlumniConnect.NoActionBar"
+            android:parentActivityName=".activities.MainActivity" />
+
     </application>
 
 </manifest>

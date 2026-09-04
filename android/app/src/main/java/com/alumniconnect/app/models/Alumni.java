@@ -49,6 +49,9 @@ public class Alumni {
     @SerializedName("mentorship_available")
     private Boolean mentorshipAvailable;  // nullable, default false
 
+    @SerializedName("is_verified")
+    private Boolean isVerified;           // nullable, default false
+
     public Alumni() {}
 
     // Getters
@@ -67,6 +70,10 @@ public class Alumni {
     public String getGithubUrl() { return githubUrl; }
     public boolean isMentorshipAvailable() {
         return mentorshipAvailable != null && mentorshipAvailable;
+    }
+
+    public boolean isVerified() {
+        return isVerified != null && isVerified;
     }
 
     /** Returns a non-null display name — never "null" or empty */

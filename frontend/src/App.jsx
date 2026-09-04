@@ -9,6 +9,7 @@ import Events from "./pages/Events";
 import Mentorship from "./pages/Mentorship";
 import Opportunities from "./pages/Opportunities";
 import Notifications from "./pages/Notifications";
+import SavedItems from "./pages/SavedItems";
 import AdminDashboard from "./pages/AdminDashboard";
 
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -80,6 +81,15 @@ function App() {
         element={
           <ProtectedRoute>
             <Notifications />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/saved"
+        element={
+          <ProtectedRoute>
+            <SavedItems />
           </ProtectedRoute>
         }
       />

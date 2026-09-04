@@ -15,25 +15,32 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.alumniconnect.app.R;
 import com.alumniconnect.app.activities.EditProfileActivity;
 import com.alumniconnect.app.activities.MainActivity;
+import com.alumniconnect.app.activities.SavedItemsActivity;
+import com.alumniconnect.app.models.NotificationPreferences;
+import com.alumniconnect.app.models.ProfileCompletion;
 import com.alumniconnect.app.models.ProfileResponse;
+import com.alumniconnect.app.repositories.PreferenceRepository;
 import com.alumniconnect.app.repositories.ProfileRepository;
 import com.alumniconnect.app.utils.ApiErrorUtils;
 import com.alumniconnect.app.utils.SessionManager;
 import com.alumniconnect.app.utils.UrlUtils;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.progressindicator.LinearProgressIndicator;
+import android.widget.Toast;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
 public class ProfileFragment extends Fragment {
     private ProfileRepository profileRepository;
+    private PreferenceRepository preferenceRepository;
     private SessionManager sessionManager;
     private SwipeRefreshLayout swipeRefresh;
     private ProgressBar progressProfile;
     private TextView tvProfileError, tvProfileInitial, tvProfileName, tvProfileEmail;
     private TextView tvProfileRoleBadge;
     private LinearLayout layoutProfileFields;
-    private View btnEditProfile, btnProfileAbout;
+    private View btnEditProfile, btnProfileAbout, btnSavedItems, btnNotificationPrefs;
     private ProfileResponse currentProfile;
 
     // Completion UI
@@ -52,6 +59,7 @@ public class ProfileFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
 
         profileRepository = new ProfileRepository(requireContext());
+        preferenceRepository = new PreferenceRepository(requireContext());
         sessionManager = new SessionManager(requireContext());
 
         swipeRefresh = view.findViewById(R.id.swipe_refresh_profile);
@@ -64,6 +72,8 @@ public class ProfileFragment extends Fragment {
         layoutProfileFields = view.findViewById(R.id.layout_profile_fields);
         btnEditProfile = view.findViewById(R.id.btn_edit_profile);
         btnProfileAbout = view.findViewById(R.id.btn_profile_about);
+        btnSavedItems = view.findViewById(R.id.btn_saved_items);
+        btnNotificationPrefs = view.findViewById(R.id.btn_notification_prefs);
 
         tvCompletionPercentage = view.findViewById(R.id.tv_completion_percentage);
         tvCompletionHint = view.findViewById(R.id.tv_completion_hint);
@@ -73,6 +83,17 @@ public class ProfileFragment extends Fragment {
         swipeRefresh.setOnRefreshListener(() -> loadProfile(true));
 
         btnEditProfile.setOnClickListener(v -> openEditProfile());
+
+        if (btnSavedItems != null) {
+            btnSavedItems.setOnClickListener(v -> {
+                Intent intent = new Intent(requireContext(), SavedItemsActivity.class);
+                startActivity(intent);
+            });
+        }
+
+        if (btnNotificationPrefs != null) {
+            btnNotificationPrefs.setOnClickListener(v -> showNotificationPreferencesDialog());
+        }
 
         if (btnProfileAbout != null) {
             btnProfileAbout.setOnClickListener(v -> {
@@ -285,6 +306,81 @@ public class ProfileFragment extends Fragment {
             intent.putExtra("profile_interests", currentProfile.getProfileString("interests"));
         }
         startActivity(intent);
+    }
+
+    private void showNotificationPreferencesDialog() {
+        if (!isAdded() || getContext() == null) return;
+
+        preferenceRepository.getPreferences().enqueue(new Callback<NotificationPreferences>() {
+            @Override
+            public void onResponse(@NonNull Call<NotificationPreferences> call, @NonNull Response<NotificationPreferences> response) {
+                if (!isAdded() || getContext() == null) return;
+
+                boolean events = true;
+                boolean mentorship = true;
+                boolean opportunities = true;
+                boolean announcements = true;
+
+                if (response.isSuccessful() && response.body() != null) {
+                    NotificationPreferences prefs = response.body();
+                    events = prefs.isEvents();
+                    mentorship = prefs.isMentorship();
+                    opportunities = prefs.isOpportunities();
+                    announcements = prefs.isAnnouncements();
+                }
+
+                final boolean[] checkedItems = new boolean[]{events, mentorship, opportunities, announcements};
+                final CharSequence[] items = new CharSequence[]{
+                        "📅 Event Reminders & Updates",
+                        "🤝 Mentorship Requests & Updates",
+                        "💼 Career & Job Opportunities",
+                        "📢 Campus Announcements"
+                };
+
+                new MaterialAlertDialogBuilder(requireContext())
+                        .setTitle("Notification Preferences")
+                        .setMultiChoiceItems(items, checkedItems, (dialog, which, isChecked) -> {
+                            checkedItems[which] = isChecked;
+                        })
+                        .setPositiveButton("Save", (dialog, which) -> {
+                            NotificationPreferences updated = new NotificationPreferences(
+                                    checkedItems[0],
+                                    checkedItems[1],
+                                    checkedItems[2],
+                                    checkedItems[3]
+                            );
+                            saveNotificationPreferences(updated);
+                        })
+                        .setNegativeButton("Cancel", null)
+                        .show();
+            }
+
+            @Override
+            public void onFailure(@NonNull Call<NotificationPreferences> call, @NonNull Throwable t) {
+                if (!isAdded() || getContext() == null) return;
+                Toast.makeText(requireContext(), "Failed to load preferences: " + ApiErrorUtils.getNetworkErrorMessage(t), Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private void saveNotificationPreferences(NotificationPreferences prefs) {
+        preferenceRepository.updatePreferences(prefs).enqueue(new Callback<NotificationPreferences>() {
+            @Override
+            public void onResponse(@NonNull Call<NotificationPreferences> call, @NonNull Response<NotificationPreferences> response) {
+                if (!isAdded() || getContext() == null) return;
+                if (response.isSuccessful()) {
+                    Toast.makeText(requireContext(), "Preferences updated successfully", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(requireContext(), "Failed to update: " + ApiErrorUtils.getErrorMessage(response), Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void onFailure(@NonNull Call<NotificationPreferences> call, @NonNull Throwable t) {
+                if (!isAdded() || getContext() == null) return;
+                Toast.makeText(requireContext(), ApiErrorUtils.getNetworkErrorMessage(t), Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     private com.alumniconnect.app.models.User buildUserFromProfile(ProfileResponse p) {

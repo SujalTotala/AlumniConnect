@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import DashboardLayout from "../layouts/DashboardLayout";
 import { eventApi } from "../api/eventApi";
+import { bookmarkApi } from "../api/bookmarkApi";
 
 const Events = () => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState("");
   const [search, setSearch] = useState("");
+  const [savedEventIds, setSavedEventIds] = useState(new Set());
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [attendeesModalEvent, setAttendeesModalEvent] = useState(null);
@@ -37,6 +39,16 @@ const Events = () => {
     image_url: "",
   });
 
+  const fetchBookmarks = async () => {
+    try {
+      const res = await bookmarkApi.getBookmarks("event");
+      const ids = new Set((res.data || []).map((b) => b.item_id));
+      setSavedEventIds(ids);
+    } catch (err) {
+      console.error("Failed to load saved event bookmarks:", err);
+    }
+  };
+
   const fetchEvents = async () => {
     setLoading(true);
     try {
@@ -45,7 +57,7 @@ const Events = () => {
       if (search) params.search = search;
 
       const res = await eventApi.getEvents(params);
-      setEvents(res.data);
+      setEvents(res.data || []);
     } catch (err) {
       console.error("Failed to load events:", err);
       setErrorMsg("Failed to load events.");
@@ -56,11 +68,71 @@ const Events = () => {
 
   useEffect(() => {
     fetchEvents();
+    fetchBookmarks();
   }, [typeFilter]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     fetchEvents();
+  };
+
+  const handleToggleBookmark = async (e, event) => {
+    e.stopPropagation();
+    const isSaved = savedEventIds.has(event.id);
+    try {
+      if (isSaved) {
+        await bookmarkApi.deleteBookmarkByItem("event", event.id);
+        setSavedEventIds((prev) => {
+          const next = new Set(prev);
+          next.delete(event.id);
+          return next;
+        });
+      } else {
+        await bookmarkApi.createBookmark("event", event.id);
+        setSavedEventIds((prev) => new Set(prev).add(event.id));
+      }
+    } catch (err) {
+      console.error("Failed to update bookmark:", err);
+      setErrorMsg("Failed to update bookmark status.");
+    }
+  };
+
+  const handleAddToCalendar = (event) => {
+    const pad = (n) => (n < 10 ? "0" + n : n);
+    let startDateStr = "";
+    if (event.event_date) {
+      const d = new Date(event.event_date);
+      startDateStr = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T090000Z`;
+    } else {
+      const now = new Date();
+      startDateStr = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}T090000Z`;
+    }
+
+    const icsContent = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//AlumniConnect//Event Calendar//EN",
+      "BEGIN:VEVENT",
+      `UID:event-${event.id}@alumniconnect.edu`,
+      `DTSTAMP:${startDateStr}`,
+      `DTSTART:${startDateStr}`,
+      `SUMMARY:${(event.title || "Alumni Event").replace(/\n/g, " ")}`,
+      `DESCRIPTION:${(event.description || "").replace(/\n/g, "\\n")}`,
+      `LOCATION:${(event.location || "Online").replace(/\n/g, " ")}`,
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ].join("\r\n");
+
+    const blob = new Blob([icsContent], { type: "text/calendar;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = window.URL.createObjectURL(blob);
+    link.setAttribute("download", `${(event.title || "Event").replace(/[^a-zA-Z0-9]/g, "_")}.ics`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    setSuccessMsg(`Calendar file (.ics) downloaded for "${event.title}"`);
+    setTimeout(() => setSuccessMsg(""), 3000);
   };
 
   const handleChange = (e) => {
@@ -141,7 +213,7 @@ const Events = () => {
     setAttendeesLoading(true);
     try {
       const res = await eventApi.getRegistrations(event.id);
-      setAttendees(res.data);
+      setAttendees(res.data || []);
     } catch (err) {
       console.error("Failed to load attendees:", err);
       setAttendees([]);
@@ -215,7 +287,7 @@ const Events = () => {
               <option value="Alumni Meet">Alumni Meet</option>
               <option value="Webinar">Webinar</option>
               <option value="Workshop">Workshop</option>
-              <option value="Networking">Networking Session</option>
+              <option value="Networking Session">Networking Session</option>
               <option value="Career Guidance">Career Guidance</option>
               <option value="Reunion">Reunion</option>
             </select>
@@ -236,77 +308,104 @@ const Events = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {events.map((event) => (
-              <div
-                key={event.id}
-                className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex justify-between items-start gap-2 mb-3">
-                    <span className="bg-blue-50 text-blue-700 text-xs font-bold px-2.5 py-1 rounded-full border border-blue-200">
-                      {event.event_type}
-                    </span>
-                    {event.is_registered && (
-                      <span className="bg-emerald-50 text-emerald-700 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-emerald-200">
-                        Registered ✓
-                      </span>
-                    )}
-                  </div>
+            {events.map((event) => {
+              const isSaved = savedEventIds.has(event.id);
 
-                  <h2 className="text-xl font-bold text-slate-900 mb-2 leading-tight">{event.title}</h2>
-                  <p className="text-xs text-slate-600 line-clamp-3 mb-4">{event.description}</p>
-
-                  <div className="space-y-1.5 text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                    <div className="flex items-center gap-2">
-                      <span>📅</span>
-                      <span className="font-semibold text-slate-800">
-                        {event.event_date} {event.start_time && `• ${event.start_time}`}
+              return (
+                <div
+                  key={event.id}
+                  className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex justify-between items-start gap-2 mb-3">
+                      <span className="bg-blue-50 text-blue-700 text-xs font-bold px-2.5 py-1 rounded-full border border-blue-200">
+                        {event.event_type}
                       </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span>📍</span>
-                      <span>{event.location}</span>
-                    </div>
-                    {event.meeting_url && (
-                      <div className="flex items-center gap-2">
-                        <span>🔗</span>
-                        <a
-                          href={event.meeting_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-blue-700 font-semibold hover:underline truncate"
+                      <div className="flex items-center gap-1.5">
+                        {event.is_registered && (
+                          <span className="bg-emerald-50 text-emerald-700 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-emerald-200">
+                            Registered ✓
+                          </span>
+                        )}
+                        <button
+                          onClick={(e) => handleToggleBookmark(e, event)}
+                          className={`p-1.5 rounded-lg border text-sm transition ${
+                            isSaved
+                              ? "bg-amber-50 text-amber-500 border-amber-200"
+                              : "text-slate-400 border-slate-200 hover:text-amber-500 hover:bg-slate-50"
+                          }`}
+                          title={isSaved ? "Remove from saved" : "Save event"}
+                          aria-label={isSaved ? "Saved" : "Save"}
                         >
-                          Join Virtual Stage
-                        </a>
+                          {isSaved ? "★" : "☆"}
+                        </button>
                       </div>
-                    )}
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <span>👥</span>
-                      <span>{event.registrations_count} Attendees Registered</span>
+                    </div>
+
+                    <h2 className="text-xl font-bold text-slate-900 mb-2 leading-tight">{event.title}</h2>
+                    <p className="text-xs text-slate-600 line-clamp-3 mb-4">{event.description}</p>
+
+                    <div className="space-y-1.5 text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <span>📅</span>
+                        <span className="font-semibold text-slate-800">
+                          {event.event_date} {event.start_time && `• ${event.start_time}`}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span>📍</span>
+                        <span>{event.location}</span>
+                      </div>
+                      {event.meeting_url && (
+                        <div className="flex items-center gap-2">
+                          <span>🔗</span>
+                          <a
+                            href={event.meeting_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-blue-700 font-semibold hover:underline truncate"
+                          >
+                            Join Virtual Stage
+                          </a>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 text-slate-400">
+                        <span>👥</span>
+                        <span>{event.registrations_count} Attendees Registered</span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="pt-4 mt-4 border-t border-slate-100 flex flex-col gap-2">
-                  <div className="flex justify-between items-center">
-                    {event.is_registered ? (
+                  <div className="pt-4 mt-4 border-t border-slate-100 flex flex-col gap-2">
+                    <div className="flex justify-between items-center">
+                      {event.is_registered ? (
+                        <button
+                          onClick={() => handleCancelRegistration(event.id)}
+                          className="bg-slate-100 hover:bg-red-50 text-slate-700 hover:text-red-600 px-4 py-2 rounded-xl text-xs font-semibold transition"
+                        >
+                          Cancel RSVP
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleRegister(event.id)}
+                          className="bg-blue-700 hover:bg-blue-800 text-white px-5 py-2 rounded-xl text-xs font-semibold transition shadow-sm"
+                        >
+                          Register for Event
+                        </button>
+                      )}
+
                       <button
-                        onClick={() => handleCancelRegistration(event.id)}
-                        className="bg-slate-100 hover:bg-red-50 text-slate-700 hover:text-red-600 px-4 py-2 rounded-xl text-xs font-semibold transition"
+                        onClick={() => handleAddToCalendar(event)}
+                        className="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1"
+                        title="Download .ics Calendar Invite"
                       >
-                        Cancel RSVP
+                        <span>📆</span>
+                        <span>Add to Cal</span>
                       </button>
-                    ) : (
-                      <button
-                        onClick={() => handleRegister(event.id)}
-                        className="bg-blue-700 hover:bg-blue-800 text-white px-5 py-2 rounded-xl text-xs font-semibold transition shadow-sm"
-                      >
-                        Register for Event
-                      </button>
-                    )}
+                    </div>
 
                     {(role === "admin" || currentUser?.id === event.created_by) && (
-                      <div className="flex gap-2">
+                      <div className="flex justify-end gap-3 pt-1 border-t border-slate-50">
                         <button
                           onClick={() => handleViewAttendees(event)}
                           className="text-xs text-indigo-600 hover:underline font-semibold"
@@ -323,8 +422,8 @@ const Events = () => {
                     )}
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

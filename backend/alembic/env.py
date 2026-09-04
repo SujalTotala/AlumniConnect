@@ -20,6 +20,9 @@ from app.models.event_model import Event, EventRegistration
 from app.models.mentorship_model import MentorshipRequest
 from app.models.opportunity_model import Opportunity
 from app.models.notification_model import Notification
+from app.models.bookmark_model import UserBookmark
+from app.models.announcement_model import Announcement
+from app.models.preference_model import NotificationPreference
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

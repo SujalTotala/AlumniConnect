@@ -1,5 +1,6 @@
 package com.alumniconnect.app.activities;
 
+import android.provider.CalendarContract;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -16,6 +17,9 @@ import com.alumniconnect.app.repositories.EventRepository;
 import com.alumniconnect.app.utils.ApiErrorUtils;
 import com.alumniconnect.app.utils.SessionManager;
 import com.google.android.material.button.MaterialButton;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 import java.util.Map;
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -43,7 +47,7 @@ public class EventDetailsActivity extends AppCompatActivity {
     private TextView tvEdDate, tvEdTime, tvEdLocation, tvEdRegCount, tvEdDescription;
     private LinearLayout rowEdTime, rowEdLocation, rowEdDescription;
     // Buttons
-    private MaterialButton btnRegister, btnCancelRegistration, btnJoinOnline, btnViewRegistrations;
+    private MaterialButton btnRegister, btnCancelRegistration, btnJoinOnline, btnAddToCalendar, btnViewRegistrations;
     private ProgressBar progressRegistration;
     private TextView tvStatusMsg;
 
@@ -86,6 +90,7 @@ public class EventDetailsActivity extends AppCompatActivity {
         btnRegister = findViewById(R.id.btn_register_event);
         btnCancelRegistration = findViewById(R.id.btn_cancel_registration);
         btnJoinOnline = findViewById(R.id.btn_join_online);
+        btnAddToCalendar = findViewById(R.id.btn_add_to_calendar);
         btnViewRegistrations = findViewById(R.id.btn_view_registrations);
         progressRegistration = findViewById(R.id.progress_registration);
         tvStatusMsg = findViewById(R.id.tv_registration_status_msg);
@@ -107,6 +112,7 @@ public class EventDetailsActivity extends AppCompatActivity {
         btnRegister.setOnClickListener(v -> registerForEvent());
         btnCancelRegistration.setOnClickListener(v -> confirmCancelRegistration());
         btnJoinOnline.setOnClickListener(v -> joinOnline());
+        btnAddToCalendar.setOnClickListener(v -> addToCalendar());
         btnViewRegistrations.setOnClickListener(v -> viewRegistrations());
         btnRetry.setOnClickListener(v -> fetchEventDetails());
 
@@ -345,5 +351,28 @@ public class EventDetailsActivity extends AppCompatActivity {
         tvStatusMsg.setTextColor(getResources().getColor(R.color.error, null));
         tvStatusMsg.setBackgroundColor(0x1FEF4444);
         tvStatusMsg.setVisibility(View.VISIBLE);
+    }
+
+    private void addToCalendar() {
+        if (currentEvent == null) return;
+        try {
+            Intent intent = new Intent(Intent.ACTION_INSERT)
+                    .setData(CalendarContract.Events.CONTENT_URI)
+                    .putExtra(CalendarContract.Events.TITLE, currentEvent.getTitle())
+                    .putExtra(CalendarContract.Events.DESCRIPTION, currentEvent.getDescription())
+                    .putExtra(CalendarContract.Events.EVENT_LOCATION, currentEvent.getLocation());
+
+            if (currentEvent.getEventDate() != null) {
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+                Date d = sdf.parse(currentEvent.getEventDate());
+                if (d != null) {
+                    intent.putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, d.getTime());
+                }
+            }
+
+            startActivity(intent);
+        } catch (Exception e) {
+            Toast.makeText(this, "Unable to open calendar application", Toast.LENGTH_SHORT).show();
+        }
     }
 }

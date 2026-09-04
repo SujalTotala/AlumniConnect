@@ -11,6 +11,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
@@ -21,12 +22,17 @@ import com.alumniconnect.app.R;
 import com.alumniconnect.app.activities.AlumniDetailsActivity;
 import com.alumniconnect.app.adapters.AlumniAdapter;
 import com.alumniconnect.app.models.Alumni;
+import com.alumniconnect.app.models.Bookmark;
 import com.alumniconnect.app.repositories.AlumniRepository;
+import com.alumniconnect.app.repositories.BookmarkRepository;
 import com.alumniconnect.app.utils.ApiErrorUtils;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.TextInputEditText;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -36,11 +42,12 @@ public class AlumniFragment extends Fragment {
     private static final int DEBOUNCE_DELAY_MS = 400;
 
     private AlumniRepository alumniRepository;
+    private BookmarkRepository bookmarkRepository;
     private AlumniAdapter adapter;
 
     // Views
     private TextInputEditText etSearch;
-    private Chip chipMentorship, chipDept, chipYear, chipClear;
+    private Chip chipMentorship, chipDept, chipYear, chipVerified, chipMoreFilters, chipClear;
     private ProgressBar progressAlumni;
     private RecyclerView rvAlumni;
     private SwipeRefreshLayout swipeRefresh;
@@ -48,11 +55,16 @@ public class AlumniFragment extends Fragment {
     private TextView tvErrorMsg, tvResultCount, tvEmptyMsg;
     private View btnRetry;
 
-    // Active filter state (preserved across tab switches)
+    // Active filter state
     private String activeSearch = null;
-    private Boolean activeMentorshipFilter = null;   // null = no filter
+    private Boolean activeMentorshipFilter = null;
+    private Boolean activeVerifiedFilter = null;
     private String activeDeptFilter = null;
     private String activeYearFilter = null;
+    private String activeCompanyFilter = null;
+    private String activeJobRoleFilter = null;
+
+    private Set<Integer> savedAlumniIds = new HashSet<>();
 
     // Debounce handler
     private final Handler debounceHandler = new Handler(Looper.getMainLooper());
@@ -70,11 +82,14 @@ public class AlumniFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
 
         alumniRepository = new AlumniRepository(requireContext());
+        bookmarkRepository = new BookmarkRepository(requireContext());
 
         etSearch = view.findViewById(R.id.et_search);
         chipMentorship = view.findViewById(R.id.chip_mentorship);
         chipDept = view.findViewById(R.id.chip_dept);
         chipYear = view.findViewById(R.id.chip_year);
+        chipVerified = view.findViewById(R.id.chip_verified);
+        chipMoreFilters = view.findViewById(R.id.chip_more_filters);
         chipClear = view.findViewById(R.id.chip_clear);
         progressAlumni = view.findViewById(R.id.progress_alumni);
         rvAlumni = view.findViewById(R.id.rv_alumni);
@@ -87,30 +102,17 @@ public class AlumniFragment extends Fragment {
         btnRetry = view.findViewById(R.id.btn_retry);
 
         // RecyclerView setup
-        adapter = new AlumniAdapter(alumni -> openAlumniDetails(alumni));
+        adapter = new AlumniAdapter(this::openAlumniDetails);
+        adapter.setOnAlumniBookmarkClickListener(this::handleToggleBookmark);
         rvAlumni.setLayoutManager(new LinearLayoutManager(requireContext()));
         rvAlumni.setAdapter(adapter);
 
         // SwipeRefresh
         swipeRefresh.setColorSchemeResources(R.color.primary);
-        swipeRefresh.setOnRefreshListener(() -> loadAlumni(true));
-
-        // Restore filter views if previously active
-        if (activeSearch != null && !activeSearch.isEmpty()) {
-            etSearch.setText(activeSearch);
-        }
-        if (Boolean.TRUE.equals(activeMentorshipFilter)) {
-            chipMentorship.setChecked(true);
-        }
-        if (activeDeptFilter != null) {
-            chipDept.setChecked(true);
-            chipDept.setText("Dept: " + activeDeptFilter);
-        }
-        if (activeYearFilter != null) {
-            chipYear.setChecked(true);
-            chipYear.setText("Year: " + activeYearFilter);
-        }
-        updateClearChipVisibility();
+        swipeRefresh.setOnRefreshListener(() -> {
+            loadSavedBookmarks();
+            loadAlumni(true);
+        });
 
         // Search with debounce
         etSearch.addTextChangedListener(new TextWatcher() {
@@ -135,6 +137,13 @@ public class AlumniFragment extends Fragment {
             loadAlumni(false);
         });
 
+        // Verified filter chip
+        chipVerified.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            activeVerifiedFilter = isChecked ? true : null;
+            updateClearChipVisibility();
+            loadAlumni(false);
+        });
+
         // Department filter chip
         chipDept.setOnClickListener(v -> showTextFilterDialog("Filter by Department", "e.g. Computer Science",
                 current -> {
@@ -155,20 +164,82 @@ public class AlumniFragment extends Fragment {
                     loadAlumni(false);
                 }));
 
+        // More filters chip (Company / Role)
+        chipMoreFilters.setOnClickListener(v -> showMoreFiltersDialog());
+
         // Clear filters
         chipClear.setOnClickListener(v -> clearAllFilters());
 
         // Retry button
-        btnRetry.setOnClickListener(v -> loadAlumni(false));
+        btnRetry.setOnClickListener(v -> {
+            loadSavedBookmarks();
+            loadAlumni(false);
+        });
 
         // Initial load
+        loadSavedBookmarks();
         loadAlumni(false);
+    }
+
+    private void loadSavedBookmarks() {
+        bookmarkRepository.getBookmarks("alumni").enqueue(new Callback<List<Bookmark>>() {
+            @Override
+            public void onResponse(Call<List<Bookmark>> call, Response<List<Bookmark>> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    savedAlumniIds.clear();
+                    for (Bookmark b : response.body()) {
+                        savedAlumniIds.add(b.getItemId());
+                    }
+                    if (adapter != null) adapter.setSavedAlumniIds(savedAlumniIds);
+                }
+            }
+
+            @Override
+            public void onFailure(Call<List<Bookmark>> call, Throwable t) {
+                // Silently ignore bookmark sync failure on startup
+            }
+        });
+    }
+
+    private void handleToggleBookmark(Alumni alumni, boolean isCurrentlyBookmarked) {
+        if (isCurrentlyBookmarked) {
+            bookmarkRepository.deleteBookmarkByItem("alumni", alumni.getId()).enqueue(new Callback<Map<String, Object>>() {
+                @Override
+                public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> response) {
+                    if (isAdded()) {
+                        savedAlumniIds.remove(alumni.getId());
+                        adapter.setSavedAlumniIds(savedAlumniIds);
+                        Toast.makeText(requireContext(), "Removed from saved items", Toast.LENGTH_SHORT).show();
+                    }
+                }
+
+                @Override
+                public void onFailure(Call<Map<String, Object>> call, Throwable t) {
+                    if (isAdded()) Toast.makeText(requireContext(), "Failed to remove bookmark", Toast.LENGTH_SHORT).show();
+                }
+            });
+        } else {
+            bookmarkRepository.createBookmark("alumni", alumni.getId()).enqueue(new Callback<Bookmark>() {
+                @Override
+                public void onResponse(Call<Bookmark> call, Response<Bookmark> response) {
+                    if (isAdded() && response.isSuccessful()) {
+                        savedAlumniIds.add(alumni.getId());
+                        adapter.setSavedAlumniIds(savedAlumniIds);
+                        Toast.makeText(requireContext(), "Saved to bookmarks ★", Toast.LENGTH_SHORT).show();
+                    }
+                }
+
+                @Override
+                public void onFailure(Call<Bookmark> call, Throwable t) {
+                    if (isAdded()) Toast.makeText(requireContext(), "Failed to bookmark alumni", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
     }
 
     @Override
     public void onDestroyView() {
         super.onDestroyView();
-        // Prevent background callback execution when view is destroyed
         if (debounceRunnable != null) {
             debounceHandler.removeCallbacks(debounceRunnable);
             debounceRunnable = null;
@@ -185,7 +256,8 @@ public class AlumniFragment extends Fragment {
         }
 
         alumniRepository.getAlumni(activeSearch, activeDeptFilter, activeYearFilter,
-                null, null, activeMentorshipFilter)
+                activeCompanyFilter, activeJobRoleFilter, null, null,
+                activeMentorshipFilter, activeVerifiedFilter)
                 .enqueue(new Callback<List<Alumni>>() {
                     @Override
                     public void onResponse(Call<List<Alumni>> call, Response<List<Alumni>> response) {
@@ -239,14 +311,19 @@ public class AlumniFragment extends Fragment {
     private void clearAllFilters() {
         activeSearch = null;
         activeMentorshipFilter = null;
+        activeVerifiedFilter = null;
         activeDeptFilter = null;
         activeYearFilter = null;
+        activeCompanyFilter = null;
+        activeJobRoleFilter = null;
         etSearch.setText("");
         chipMentorship.setChecked(false);
+        chipVerified.setChecked(false);
         chipDept.setChecked(false);
         chipDept.setText("Department");
         chipYear.setChecked(false);
         chipYear.setText("Batch Year");
+        chipMoreFilters.setText("⚙ Company & Role");
         chipClear.setVisibility(View.GONE);
         loadAlumni(false);
     }
@@ -258,8 +335,11 @@ public class AlumniFragment extends Fragment {
     private boolean hasActiveFilters() {
         return (activeSearch != null && !activeSearch.isEmpty())
                 || activeMentorshipFilter != null
+                || activeVerifiedFilter != null
                 || activeDeptFilter != null
-                || activeYearFilter != null;
+                || activeYearFilter != null
+                || activeCompanyFilter != null
+                || activeJobRoleFilter != null;
     }
 
     private void openAlumniDetails(Alumni alumni) {
@@ -294,6 +374,52 @@ public class AlumniFragment extends Fragment {
                 })
                 .setNeutralButton(R.string.btn_clear_filter, (dialog, which) -> callback.onFilter(null))
                 .setNegativeButton(R.string.dialog_cancel_negative, null)
+                .show();
+    }
+
+    private void showMoreFiltersDialog() {
+        if (!isAdded() || getContext() == null) return;
+
+        android.widget.LinearLayout layout = new android.widget.LinearLayout(requireContext());
+        layout.setOrientation(android.widget.LinearLayout.VERTICAL);
+        layout.setPadding(40, 20, 40, 10);
+
+        final android.widget.EditText etCompany = new android.widget.EditText(requireContext());
+        etCompany.setHint("Company (e.g. Google)");
+        if (activeCompanyFilter != null) etCompany.setText(activeCompanyFilter);
+
+        final android.widget.EditText etRole = new android.widget.EditText(requireContext());
+        etRole.setHint("Job Role (e.g. Engineer)");
+        if (activeJobRoleFilter != null) etRole.setText(activeJobRoleFilter);
+
+        layout.addView(etCompany);
+        layout.addView(etRole);
+
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle("Filter by Company & Role")
+                .setView(layout)
+                .setPositiveButton("Apply", (dialog, which) -> {
+                    String comp = etCompany.getText().toString().trim();
+                    String role = etRole.getText().toString().trim();
+                    activeCompanyFilter = comp.isEmpty() ? null : comp;
+                    activeJobRoleFilter = role.isEmpty() ? null : role;
+
+                    if (activeCompanyFilter != null || activeJobRoleFilter != null) {
+                        chipMoreFilters.setText("⚙ " + (activeCompanyFilter != null ? activeCompanyFilter : activeJobRoleFilter));
+                    } else {
+                        chipMoreFilters.setText("⚙ Company & Role");
+                    }
+                    updateClearChipVisibility();
+                    loadAlumni(false);
+                })
+                .setNeutralButton("Clear", (dialog, which) -> {
+                    activeCompanyFilter = null;
+                    activeJobRoleFilter = null;
+                    chipMoreFilters.setText("⚙ Company & Role");
+                    updateClearChipVisibility();
+                    loadAlumni(false);
+                })
+                .setNegativeButton("Cancel", null)
                 .show();
     }
 

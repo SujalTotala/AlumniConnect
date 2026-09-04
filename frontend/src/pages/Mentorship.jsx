@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import DashboardLayout from "../layouts/DashboardLayout";
 import { mentorshipApi } from "../api/mentorshipApi";
+import { alumniApi } from "../api/alumniApi";
 
 const Mentorship = () => {
   const [activeTab, setActiveTab] = useState("mentors"); // 'mentors', 'sent', 'received'
   const [mentors, setMentors] = useState([]);
+  const [recommendations, setRecommendations] = useState([]);
   const [sentRequests, setSentRequests] = useState([]);
   const [receivedRequests, setReceivedRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -30,7 +32,17 @@ const Mentorship = () => {
     setLoading(true);
     try {
       const res = await mentorshipApi.getMentors();
-      setMentors(res.data);
+      setMentors(res.data || []);
+
+      // If user is logged in, fetch tailored recommendations
+      try {
+        const recRes = await alumniApi.getRecommendedMentors();
+        if (Array.isArray(recRes.data)) {
+          setRecommendations(recRes.data.filter((r) => r.match_score > 0));
+        }
+      } catch (recErr) {
+        console.log("No personalized mentor recommendations available yet", recErr);
+      }
     } catch (err) {
       console.error("Failed to load mentors", err);
     } finally {
@@ -42,7 +54,7 @@ const Mentorship = () => {
     setLoading(true);
     try {
       const res = await mentorshipApi.getSentRequests();
-      setSentRequests(res.data);
+      setSentRequests(res.data || []);
     } catch (err) {
       console.error("Failed to load sent requests", err);
     } finally {
@@ -54,7 +66,7 @@ const Mentorship = () => {
     setLoading(true);
     try {
       const res = await mentorshipApi.getReceivedRequests();
-      setReceivedRequests(res.data);
+      setReceivedRequests(res.data || []);
     } catch (err) {
       console.error("Failed to load received requests", err);
     } finally {
@@ -218,67 +230,156 @@ const Mentorship = () => {
 
         {/* Tab 1: Available Mentors */}
         {activeTab === "mentors" && (
-          <div className="space-y-6">
-            {loading ? (
-              <div className="text-center py-16 text-slate-500">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-purple-600 border-t-transparent mb-2"></div>
-                <p className="text-sm">Finding mentors...</p>
-              </div>
-            ) : mentors.length === 0 ? (
-              <div className="bg-white p-12 rounded-2xl border border-slate-200 text-center shadow-sm">
-                <div className="text-4xl mb-3">🎓</div>
-                <h3 className="text-lg font-bold text-slate-800">No Mentors Available Yet</h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Alumni can enable mentorship availability in their profile settings.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {mentors.map((mentor) => (
-                  <div
-                    key={mentor.id}
-                    className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-12 h-12 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-lg">
-                          {mentor.name ? mentor.name.charAt(0).toUpperCase() : "M"}
-                        </div>
-                        <div>
-                          <h3 className="text-base font-bold text-slate-900">{mentor.name}</h3>
-                          <p className="text-xs text-purple-700 font-semibold">{mentor.job_role || "Alumni Mentor"}</p>
-                        </div>
-                      </div>
+          <div className="space-y-8">
+            {/* Top Recommended Mentors Section */}
+            {recommendations.length > 0 && (
+              <div className="bg-gradient-to-r from-purple-900 to-indigo-900 rounded-3xl p-6 text-white shadow-xl space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold flex items-center gap-2">
+                      <span>✨</span> Recommended Mentors For You
+                    </h2>
+                    <p className="text-xs text-purple-200 mt-0.5">
+                      Matched based on your department, career interests, and overlapping technical skills
+                    </p>
+                  </div>
+                  <span className="text-xs bg-purple-500/30 border border-purple-400/30 px-3 py-1 rounded-full text-purple-200 font-semibold">
+                    Smart Match
+                  </span>
+                </div>
 
-                      <div className="space-y-1 text-xs text-slate-600 mb-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                        {mentor.company && <p>🏢 <strong>{mentor.company}</strong></p>}
-                        {mentor.department && <p>🎓 {mentor.department}</p>}
-                        {mentor.location && <p>📍 {mentor.location}</p>}
-                      </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {recommendations.map((rec) => (
+                    <div
+                      key={rec.id}
+                      className="bg-white/10 backdrop-blur-md border border-white/15 rounded-2xl p-5 hover:bg-white/15 transition flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-2 mb-3">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <h3 className="font-bold text-white text-base leading-tight">{rec.name}</h3>
+                              {rec.is_verified && (
+                                <span className="text-blue-300 text-xs font-bold" title="Verified Alumni">
+                                  ✓
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-purple-200 font-medium">{rec.job_role || "Mentor"}</p>
+                          </div>
+                          <span className="bg-emerald-500 text-slate-950 font-extrabold text-xs px-2.5 py-1 rounded-full shadow-md">
+                            {rec.match_score}% Match
+                          </span>
+                        </div>
 
-                      {mentor.skills && (
-                        <div className="flex flex-wrap gap-1 mb-4">
-                          {mentor.skills.split(",").slice(0, 3).map((s, idx) => (
-                            <span key={idx} className="bg-purple-50 text-purple-800 text-[10px] px-2 py-0.5 rounded-md font-medium">
-                              {s.trim()}
+                        <div className="text-xs text-purple-100 space-y-1 mb-3">
+                          {rec.company && <p>🏢 {rec.company}</p>}
+                          {rec.department && <p>🎓 {rec.department}</p>}
+                        </div>
+
+                        {/* Match Reasons Tags */}
+                        {rec.match_reasons && rec.match_reasons.length > 0 && (
+                          <div className="space-y-1 my-2">
+                            <span className="text-[10px] font-semibold text-purple-300 uppercase tracking-wider">
+                              Why you match:
                             </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                            <div className="flex flex-wrap gap-1">
+                              {rec.match_reasons.map((reason, i) => (
+                                <span
+                                  key={i}
+                                  className="text-[10px] bg-white/20 text-white px-2 py-0.5 rounded-md"
+                                >
+                                  {reason}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
 
-                    <div className="pt-4 border-t border-slate-100">
                       <button
-                        onClick={() => setSelectedMentor(mentor)}
-                        className="w-full bg-purple-700 hover:bg-purple-800 text-white py-2.5 rounded-xl text-xs font-semibold transition shadow-sm"
+                        onClick={() => setSelectedMentor(rec)}
+                        className="mt-4 w-full bg-white text-purple-900 hover:bg-purple-50 font-bold py-2 rounded-xl text-xs transition shadow"
                       >
-                        Request Mentorship
+                        Request Mentorship →
                       </button>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             )}
+
+            {/* General Mentors Listing */}
+            <div>
+              <h3 className="text-lg font-bold text-slate-800 mb-4">All Available Mentors</h3>
+              {loading ? (
+                <div className="text-center py-16 text-slate-500">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-purple-600 border-t-transparent mb-2"></div>
+                  <p className="text-sm">Finding mentors...</p>
+                </div>
+              ) : mentors.length === 0 ? (
+                <div className="bg-white p-12 rounded-2xl border border-slate-200 text-center shadow-sm">
+                  <div className="text-4xl mb-3">🎓</div>
+                  <h3 className="text-lg font-bold text-slate-800">No Mentors Available Yet</h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Alumni can enable mentorship availability in their profile settings.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {mentors.map((mentor) => (
+                    <div
+                      key={mentor.id}
+                      className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-12 h-12 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-lg">
+                            {mentor.name ? mentor.name.charAt(0).toUpperCase() : "M"}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <h3 className="text-base font-bold text-slate-900">{mentor.name}</h3>
+                              {mentor.is_verified && (
+                                <span className="text-blue-600 text-xs font-bold" title="Verified Alumni">
+                                  ✓
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-purple-700 font-semibold">{mentor.job_role || "Alumni Mentor"}</p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1 text-xs text-slate-600 mb-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                          {mentor.company && <p>🏢 <strong>{mentor.company}</strong></p>}
+                          {mentor.department && <p>🎓 {mentor.department}</p>}
+                          {mentor.location && <p>📍 {mentor.location}</p>}
+                        </div>
+
+                        {mentor.skills && (
+                          <div className="flex flex-wrap gap-1 mb-4">
+                            {mentor.skills.split(",").slice(0, 3).map((s, idx) => (
+                              <span key={idx} className="bg-purple-50 text-purple-800 text-[10px] px-2 py-0.5 rounded-md font-medium">
+                                {s.trim()}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-100">
+                        <button
+                          onClick={() => setSelectedMentor(mentor)}
+                          className="w-full bg-purple-700 hover:bg-purple-800 text-white py-2.5 rounded-xl text-xs font-semibold transition shadow-sm"
+                        >
+                          Request Mentorship
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

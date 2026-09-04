@@ -1,23 +1,30 @@
 package com.alumniconnect.app.network;
 
+import com.alumniconnect.app.models.ActivityItem;
 import com.alumniconnect.app.models.AdminStatistics;
 import com.alumniconnect.app.models.Alumni;
+import com.alumniconnect.app.models.Announcement;
+import com.alumniconnect.app.models.Bookmark;
+import com.alumniconnect.app.models.BookmarkCreateRequest;
 import com.alumniconnect.app.models.Event;
 import com.alumniconnect.app.models.EventCreateRequest;
 import com.alumniconnect.app.models.EventRegistration;
 import com.alumniconnect.app.models.LoginRequest;
 import com.alumniconnect.app.models.LoginResponse;
+import com.alumniconnect.app.models.MentorRecommendation;
 import com.alumniconnect.app.models.MentorshipRequest;
 import com.alumniconnect.app.models.MentorshipRequestCreate;
 import com.alumniconnect.app.models.MentorshipStatusUpdate;
 import com.alumniconnect.app.models.Notification;
-import com.alumniconnect.app.models.UnreadCountResponse;
+import com.alumniconnect.app.models.NotificationPreferences;
 import com.alumniconnect.app.models.Opportunity;
 import com.alumniconnect.app.models.OpportunityCreateRequest;
 import com.alumniconnect.app.models.OpportunityUpdateRequest;
+import com.alumniconnect.app.models.ProfileCompletion;
 import com.alumniconnect.app.models.ProfileResponse;
 import com.alumniconnect.app.models.ProfileUpdateRequest;
 import com.alumniconnect.app.models.RegisterRequest;
+import com.alumniconnect.app.models.UnreadCountResponse;
 import com.alumniconnect.app.models.User;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +56,9 @@ public interface ApiService {
     @PUT("profile/me")
     Call<ProfileResponse> updateMyProfile(@Body ProfileUpdateRequest updateRequest);
 
+    @GET("profile/completion-suggestions")
+    Call<ProfileCompletion> getProfileCompletion();
+
     // ── Alumni ──────────────────────────────────────────────────
     @GET("alumni/")
     Call<List<Alumni>> getAlumni(
@@ -56,12 +66,18 @@ public interface ApiService {
             @Query("department") String department,
             @Query("graduation_year") String graduationYear,
             @Query("company") String company,
+            @Query("job_role") String jobRole,
             @Query("location") String location,
-            @Query("mentorship_available") Boolean mentorshipAvailable
+            @Query("skills") String skills,
+            @Query("mentorship_available") Boolean mentorshipAvailable,
+            @Query("is_verified") Boolean isVerified
     );
 
     @GET("alumni/{alumni_id}")
     Call<Alumni> getAlumniById(@Path("alumni_id") int alumniId);
+
+    @GET("alumni/recommendations/mentors")
+    Call<List<MentorRecommendation>> getRecommendedMentors();
 
     // ── Events ───────────────────────────────────────────────────
     @GET("events/")
@@ -152,6 +168,43 @@ public interface ApiService {
 
     @PUT("notifications/read-all")
     Call<Map<String, Object>> markAllNotificationsRead();
+
+    // ── Notification Preferences ─────────────────────────────────
+    @GET("notification-preferences/")
+    Call<NotificationPreferences> getNotificationPreferences();
+
+    @PUT("notification-preferences/")
+    Call<NotificationPreferences> updateNotificationPreferences(@Body NotificationPreferences preferences);
+
+    // ── Bookmarks ────────────────────────────────────────────────
+    @GET("bookmarks/")
+    Call<List<Bookmark>> getBookmarks(@Query("item_type") String itemType);
+
+    @POST("bookmarks/")
+    Call<Bookmark> createBookmark(@Body BookmarkCreateRequest request);
+
+    @GET("bookmarks/check/{item_type}/{item_id}")
+    Call<Map<String, Object>> checkBookmark(
+            @Path("item_type") String itemType,
+            @Path("item_id") int itemId
+    );
+
+    @DELETE("bookmarks/{id}")
+    Call<Map<String, Object>> deleteBookmark(@Path("id") int id);
+
+    @DELETE("bookmarks/{item_type}/{item_id}")
+    Call<Map<String, Object>> deleteBookmarkByItem(
+            @Path("item_type") String itemType,
+            @Path("item_id") int itemId
+    );
+
+    // ── Announcements ────────────────────────────────────────────
+    @GET("announcements/")
+    Call<List<Announcement>> getAnnouncements(@Query("active_only") Boolean activeOnly);
+
+    // ── Activity Feed ────────────────────────────────────────────
+    @GET("activity-feed/")
+    Call<List<ActivityItem>> getActivityFeed(@Query("limit") Integer limit);
 
     // ── Admin ────────────────────────────────────────────────────
     @GET("admin/statistics")

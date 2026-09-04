@@ -11,6 +11,11 @@ class AdminStatisticsResponse(BaseModel):
     total_event_registrations: int
     total_opportunities: int
     pending_mentorship_requests: int
+    verified_alumni: Optional[int] = 0
+    total_announcements: Optional[int] = 0
+    alumni_by_department: Optional[dict] = None
+    alumni_by_graduation_year: Optional[dict] = None
+    alumni_by_company: Optional[dict] = None
 
 class UserStatusUpdate(BaseModel):
     is_active: bool

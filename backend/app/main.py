@@ -22,6 +22,10 @@ from app.routes.mentorship_routes import router as mentorship_router
 from app.routes.opportunity_routes import router as opportunity_router
 from app.routes.notification_routes import router as notification_router
 from app.routes.admin_routes import router as admin_router
+from app.routes.bookmark_routes import router as bookmark_router
+from app.routes.announcement_routes import router as announcement_router
+from app.routes.activity_routes import router as activity_router
+from app.routes.preference_routes import router as preference_router
 
 # Keep local development convenient, but production schema changes must be
 # applied explicitly through Alembic before the application starts.
@@ -93,3 +97,7 @@ app.include_router(mentorship_router, prefix="/mentors", tags=["Mentors Alias"])
 app.include_router(opportunity_router, prefix="/opportunities", tags=["Opportunities"])
 app.include_router(notification_router, prefix="/notifications", tags=["Notifications"])
 app.include_router(admin_router, prefix="/admin", tags=["Administration"])
+app.include_router(bookmark_router, prefix="/bookmarks", tags=["Bookmarks"])
+app.include_router(announcement_router, prefix="/announcements", tags=["Announcements"])
+app.include_router(activity_router, prefix="/activity-feed", tags=["Activity Feed"])
+app.include_router(preference_router, prefix="/notification-preferences", tags=["Notification Preferences"])

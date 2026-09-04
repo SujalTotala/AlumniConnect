@@ -5,6 +5,9 @@ import { alumniApi } from "../api/alumniApi";
 import { eventApi } from "../api/eventApi";
 import { opportunityApi } from "../api/opportunityApi";
 import { adminApi } from "../api/adminApi";
+import { announcementApi } from "../api/announcementApi";
+import { profileApi } from "../api/profileApi";
+import { activityApi } from "../api/activityApi";
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
@@ -15,6 +18,9 @@ const Dashboard = () => {
     totalUsers: 0,
   });
   const [recentEvents, setRecentEvents] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
+  const [profileCompletion, setProfileCompletion] = useState(null);
+  const [recentActivities, setRecentActivities] = useState([]);
   const [loading, setLoading] = useState(true);
 
   let user = null;
@@ -31,6 +37,7 @@ const Dashboard = () => {
     const loadDashboardData = async () => {
       setLoading(true);
       try {
+        // Core stats loading
         if (isAdmin) {
           const adminStatsRes = await adminApi.getStatistics();
           const d = adminStatsRes.data;
@@ -44,7 +51,6 @@ const Dashboard = () => {
             pendingMentorship: d.pending_mentorship_requests,
           });
         } else {
-          // Fetch live data from respective public/authenticated APIs
           const [alumniRes, eventsRes, oppsRes] = await Promise.all([
             alumniApi.getAlumni(),
             eventApi.getEvents(),
@@ -65,6 +71,20 @@ const Dashboard = () => {
 
           setRecentEvents(eventsList.slice(0, 2));
         }
+
+        // Additional engagement data: announcements, profile completion, activity feed
+        try {
+          const [annRes, compRes, actRes] = await Promise.all([
+            announcementApi.getAnnouncements(true),
+            profileApi.getCompletionSuggestions(),
+            activityApi.getActivityFeed(5),
+          ]);
+          setAnnouncements(annRes.data || []);
+          setProfileCompletion(compRes.data || null);
+          setRecentActivities(actRes.data || []);
+        } catch (subErr) {
+          console.log("Secondary dashboard widgets load note:", subErr);
+        }
       } catch (err) {
         console.error("Dashboard data load error:", err);
       } finally {
@@ -78,6 +98,29 @@ const Dashboard = () => {
   return (
     <DashboardLayout>
       <div className="max-w-7xl mx-auto space-y-8">
+        {/* Priority Announcement Alert Banner */}
+        {announcements.length > 0 && (
+          <div className="bg-gradient-to-r from-amber-500 to-orange-600 rounded-2xl p-4 text-white shadow-md flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">📢</span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="bg-white/20 text-white font-bold text-[10px] px-2 py-0.5 rounded uppercase">
+                    {announcements[0].priority} Priority
+                  </span>
+                  <h3 className="font-bold text-sm sm:text-base">{announcements[0].title}</h3>
+                </div>
+                <p className="text-xs text-amber-100 mt-1 leading-relaxed">{announcements[0].content}</p>
+              </div>
+            </div>
+            {announcements.length > 1 && (
+              <span className="text-xs bg-white/20 px-2 py-1 rounded text-white font-semibold whitespace-nowrap">
+                +{announcements.length - 1} more
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Welcome Header */}
         <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-slate-900 rounded-3xl p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div>
@@ -109,6 +152,38 @@ const Dashboard = () => {
             </Link>
           </div>
         </div>
+
+        {/* Profile Completion Suggestions Banner */}
+        {profileCompletion && profileCompletion.completion_percentage < 100 && (
+          <div className="bg-white border border-blue-200 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-lg">
+                💡
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-slate-900 text-sm">Complete Your Profile</h3>
+                  <span className="bg-blue-100 text-blue-800 text-[11px] font-extrabold px-2 py-0.5 rounded-md">
+                    {profileCompletion.completion_percentage}%
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  Add details to receive better mentor recommendations:{" "}
+                  <span className="font-medium text-slate-700">
+                    {profileCompletion.missing_fields?.join(", ")}
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <Link
+              to="/profile"
+              className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold px-4 py-2 rounded-xl text-xs transition border border-blue-200 whitespace-nowrap"
+            >
+              Update Profile →
+            </Link>
+          </div>
+        )}
 
         {/* Live Metrics Grid */}
         <div>
@@ -196,7 +271,7 @@ const Dashboard = () => {
                 Mentorship Hub
               </h3>
               <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
-                Find experienced mentors, submit 1-on-1 guidance requests, and manage active mentorship connections.
+                Find experienced mentors, get AI-powered match recommendations, and manage 1-on-1 guidance sessions.
               </p>
             </div>
             <div className="mt-6 flex items-center text-xs font-semibold text-purple-700 gap-1">
@@ -218,7 +293,7 @@ const Dashboard = () => {
                 Career Opportunities
               </h3>
               <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
-                Discover job openings, summer internships, referral programs, and tech hackathons shared by alumni.
+                Discover job openings, summer internships, referral programs, and scholarships shared by alumni.
               </p>
             </div>
             <div className="mt-6 flex items-center text-xs font-semibold text-amber-700 gap-1">
@@ -228,7 +303,7 @@ const Dashboard = () => {
           </Link>
         </div>
 
-        {/* Quick Highlights: Events & Sync Banner */}
+        {/* Quick Highlights: Events & Activity Feed */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex justify-between items-center mb-4">
@@ -264,18 +339,39 @@ const Dashboard = () => {
             )}
           </div>
 
-          <div className="bg-gradient-to-br from-slate-900 to-indigo-950 p-6 rounded-2xl text-white shadow-sm flex flex-col justify-between">
+          {/* Activity Feed Highlights */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
             <div>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-xl">📱</span>
-                <h3 className="font-bold text-sm text-white">Cross-Platform Sync</h3>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">⚡</span>
+                  <h3 className="font-bold text-sm text-slate-900">Network Activity</h3>
+                </div>
+                <span className="text-[10px] text-slate-400 font-semibold uppercase">Recent Highlights</span>
               </div>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                AlumniConnect operates on a single shared FastAPI backend. Updates here will immediately sync to the Android mobile app.
-              </p>
+
+              {recentActivities.length === 0 ? (
+                <p className="text-xs text-slate-400 py-4">No recent activity logged.</p>
+              ) : (
+                <div className="divide-y divide-slate-100 space-y-2.5">
+                  {recentActivities.map((act, i) => (
+                    <div key={i} className="pt-2 flex items-start gap-2.5">
+                      <span className="text-base">{act.icon || "📌"}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-slate-800 truncate">{act.title}</p>
+                        <p className="text-[11px] text-slate-500 line-clamp-1">{act.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="mt-6 pt-4 border-t border-slate-800 text-xs text-slate-400">
-              Session Status: <span className="text-emerald-400 font-semibold">Active & Secured with JWT</span>
+
+            <div className="mt-6 pt-4 border-t border-slate-100 text-[11px] text-slate-400 flex items-center justify-between">
+              <span>Status: <strong className="text-emerald-600">Active</strong></span>
+              <Link to="/saved" className="text-blue-600 font-medium hover:underline">
+                Saved Items 🔖
+              </Link>
             </div>
           </div>
         </div>

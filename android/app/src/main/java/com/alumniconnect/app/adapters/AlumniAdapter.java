@@ -9,7 +9,9 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.alumniconnect.app.R;
 import com.alumniconnect.app.models.Alumni;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class AlumniAdapter extends RecyclerView.Adapter<AlumniAdapter.AlumniViewHolder> {
 
@@ -17,15 +19,30 @@ public class AlumniAdapter extends RecyclerView.Adapter<AlumniAdapter.AlumniView
         void onAlumniClick(Alumni alumni);
     }
 
-    private List<Alumni> alumniList = new ArrayList<>();
-    private final OnAlumniClickListener listener;
+    public interface OnAlumniBookmarkClickListener {
+        void onBookmarkClick(Alumni alumni, boolean isCurrentlyBookmarked);
+    }
 
-    public AlumniAdapter(OnAlumniClickListener listener) {
-        this.listener = listener;
+    private List<Alumni> alumniList = new ArrayList<>();
+    private Set<Integer> savedAlumniIds = new HashSet<>();
+    private final OnAlumniClickListener clickListener;
+    private OnAlumniBookmarkClickListener bookmarkClickListener;
+
+    public AlumniAdapter(OnAlumniClickListener clickListener) {
+        this.clickListener = clickListener;
+    }
+
+    public void setOnAlumniBookmarkClickListener(OnAlumniBookmarkClickListener listener) {
+        this.bookmarkClickListener = listener;
     }
 
     public void setAlumniList(List<Alumni> list) {
         this.alumniList = list != null ? list : new ArrayList<>();
+        notifyDataSetChanged();
+    }
+
+    public void setSavedAlumniIds(Set<Integer> ids) {
+        this.savedAlumniIds = ids != null ? ids : new HashSet<>();
         notifyDataSetChanged();
     }
 
@@ -44,7 +61,8 @@ public class AlumniAdapter extends RecyclerView.Adapter<AlumniAdapter.AlumniView
     @Override
     public void onBindViewHolder(@NonNull AlumniViewHolder holder, int position) {
         Alumni alumni = alumniList.get(position);
-        holder.bind(alumni, listener);
+        boolean isSaved = savedAlumniIds.contains(alumni.getId());
+        holder.bind(alumni, isSaved, clickListener, bookmarkClickListener);
     }
 
     @Override
@@ -56,7 +74,9 @@ public class AlumniAdapter extends RecyclerView.Adapter<AlumniAdapter.AlumniView
         private final TextView tvInitials;
         private final TextView tvName;
         private final TextView tvHeadline;
+        private final TextView tvVerifiedBadge;
         private final TextView tvMentorBadge;
+        private final TextView tvBookmark;
         private final TextView tvChipDept;
         private final TextView tvChipYear;
         private final TextView tvChipLocation;
@@ -67,14 +87,16 @@ public class AlumniAdapter extends RecyclerView.Adapter<AlumniAdapter.AlumniView
             tvInitials = itemView.findViewById(R.id.tv_alumni_initials);
             tvName = itemView.findViewById(R.id.tv_alumni_name);
             tvHeadline = itemView.findViewById(R.id.tv_alumni_headline);
+            tvVerifiedBadge = itemView.findViewById(R.id.tv_verified_badge);
             tvMentorBadge = itemView.findViewById(R.id.tv_mentorship_badge);
+            tvBookmark = itemView.findViewById(R.id.tv_alumni_bookmark);
             tvChipDept = itemView.findViewById(R.id.tv_chip_dept);
             tvChipYear = itemView.findViewById(R.id.tv_chip_year);
             tvChipLocation = itemView.findViewById(R.id.tv_chip_location);
             tvSkills = itemView.findViewById(R.id.tv_alumni_skills);
         }
 
-        void bind(Alumni alumni, OnAlumniClickListener listener) {
+        void bind(Alumni alumni, boolean isSaved, OnAlumniClickListener listener, OnAlumniBookmarkClickListener bookmarkListener) {
             // Avatar initials
             tvInitials.setText(alumni.getInitials());
 
@@ -90,12 +112,27 @@ public class AlumniAdapter extends RecyclerView.Adapter<AlumniAdapter.AlumniView
                 tvHeadline.setVisibility(View.GONE);
             }
 
+            // Verified badge
+            if (alumni.isVerified()) {
+                tvVerifiedBadge.setVisibility(View.VISIBLE);
+            } else {
+                tvVerifiedBadge.setVisibility(View.GONE);
+            }
+
             // Mentorship badge
             if (alumni.isMentorshipAvailable()) {
                 tvMentorBadge.setVisibility(View.VISIBLE);
             } else {
                 tvMentorBadge.setVisibility(View.GONE);
             }
+
+            // Bookmark icon
+            tvBookmark.setText(isSaved ? "★" : "☆");
+            tvBookmark.setOnClickListener(v -> {
+                if (bookmarkListener != null) {
+                    bookmarkListener.onBookmarkClick(alumni, isSaved);
+                }
+            });
 
             // Department chip
             if (Alumni.hasValue(alumni.getDepartment())) {
@@ -129,7 +166,7 @@ public class AlumniAdapter extends RecyclerView.Adapter<AlumniAdapter.AlumniView
                 tvSkills.setVisibility(View.GONE);
             }
 
-            // Click listener
+            // Click listener for details
             itemView.setOnClickListener(v -> {
                 if (listener != null) listener.onAlumniClick(alumni);
             });

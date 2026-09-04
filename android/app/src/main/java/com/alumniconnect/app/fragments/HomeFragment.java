@@ -30,9 +30,12 @@ public class HomeFragment extends Fragment {
     private AdminRepository adminRepository;
     private ProfileRepository profileRepository;
     private EventRepository eventRepository;
+    private com.alumniconnect.app.repositories.AnnouncementRepository announcementRepository;
 
     private SwipeRefreshLayout swipeRefresh;
     private TextView tvWelcome, tvUserEmail, tvRoleBadge, tvHomeStatus;
+    private View cardAnnouncement;
+    private TextView tvAnnouncementTitle, tvAnnouncementContent;
     private LinearLayout layoutAdminStats, layoutQuickActions;
     private TextView tvTotalUsers, tvTotalAlumni, tvTotalEvents, tvActiveMentors,
             tvTotalOpportunities, tvPendingMentorship;
@@ -53,12 +56,16 @@ public class HomeFragment extends Fragment {
         adminRepository = new AdminRepository(requireContext());
         profileRepository = new ProfileRepository(requireContext());
         eventRepository = new EventRepository(requireContext());
+        announcementRepository = new com.alumniconnect.app.repositories.AnnouncementRepository(requireContext());
 
         swipeRefresh = view.findViewById(R.id.swipe_refresh);
         tvWelcome = view.findViewById(R.id.tv_welcome);
         tvUserEmail = view.findViewById(R.id.tv_user_email);
         tvRoleBadge = view.findViewById(R.id.tv_role_badge);
         tvHomeStatus = view.findViewById(R.id.tv_home_status);
+        cardAnnouncement = view.findViewById(R.id.card_announcement);
+        tvAnnouncementTitle = view.findViewById(R.id.tv_announcement_title);
+        tvAnnouncementContent = view.findViewById(R.id.tv_announcement_content);
         layoutAdminStats = view.findViewById(R.id.layout_admin_stats);
         layoutQuickActions = view.findViewById(R.id.layout_quick_actions);
         tvTotalUsers = view.findViewById(R.id.tv_total_users);
@@ -115,6 +122,7 @@ public class HomeFragment extends Fragment {
     }
 
     private void loadDashboard() {
+        fetchAnnouncements();
         String role = sessionManager.getUserRole().toLowerCase();
         if ("admin".equals(role)) {
             layoutAdminStats.setVisibility(View.VISIBLE);
@@ -126,6 +134,7 @@ public class HomeFragment extends Fragment {
     }
 
     private void refreshDashboardData() {
+        fetchAnnouncements();
         String role = sessionManager.getUserRole().toLowerCase();
         if ("admin".equals(role)) {
             fetchAdminStats();
@@ -216,5 +225,26 @@ public class HomeFragment extends Fragment {
         if (getActivity() instanceof MainActivity) {
             ((MainActivity) getActivity()).loadFragment(new OpportunitiesFragment());
         }
+    }
+
+    private void fetchAnnouncements() {
+        announcementRepository.getActiveAnnouncements().enqueue(new Callback<List<com.alumniconnect.app.models.Announcement>>() {
+            @Override
+            public void onResponse(Call<List<com.alumniconnect.app.models.Announcement>> call, Response<List<com.alumniconnect.app.models.Announcement>> response) {
+                if (isAdded() && response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
+                    com.alumniconnect.app.models.Announcement top = response.body().get(0);
+                    tvAnnouncementTitle.setText(top.getTitle());
+                    tvAnnouncementContent.setText(top.getContent());
+                    cardAnnouncement.setVisibility(View.VISIBLE);
+                } else if (isAdded()) {
+                    cardAnnouncement.setVisibility(View.GONE);
+                }
+            }
+
+            @Override
+            public void onFailure(Call<List<com.alumniconnect.app.models.Announcement>> call, Throwable t) {
+                if (isAdded()) cardAnnouncement.setVisibility(View.GONE);
+            }
+        });
     }
 }
