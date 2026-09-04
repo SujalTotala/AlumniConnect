@@ -1,6 +1,5 @@
 package com.alumniconnect.app.fragments;
 
-import android.app.AlertDialog;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -19,6 +18,7 @@ import com.alumniconnect.app.adapters.MentorshipRequestAdapter;
 import com.alumniconnect.app.models.MentorshipRequest;
 import com.alumniconnect.app.repositories.MentorshipRepository;
 import com.alumniconnect.app.utils.ApiErrorUtils;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import java.util.List;
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -72,12 +72,6 @@ public class SentRequestsFragment extends Fragment implements MentorshipRequestA
         loadSentRequests(false);
     }
 
-    @Override
-    public void onResume() {
-        super.onResume();
-        loadSentRequests(false);
-    }
-
     private void loadSentRequests(boolean fromSwipe) {
         if (!fromSwipe) {
             progressSent.setVisibility(View.VISIBLE);
@@ -89,6 +83,8 @@ public class SentRequestsFragment extends Fragment implements MentorshipRequestA
         mentorshipRepository.getSentRequests().enqueue(new Callback<List<MentorshipRequest>>() {
             @Override
             public void onResponse(Call<List<MentorshipRequest>> call, Response<List<MentorshipRequest>> response) {
+                if (!isAdded()) return;
+
                 progressSent.setVisibility(View.GONE);
                 swipeRefresh.setRefreshing(false);
 
@@ -99,6 +95,7 @@ public class SentRequestsFragment extends Fragment implements MentorshipRequestA
                     if (list.isEmpty()) {
                         rvSent.setVisibility(View.GONE);
                         tvEmpty.setVisibility(View.VISIBLE);
+                        tvEmpty.setText(R.string.empty_sent_requests);
                     } else {
                         adapter.setList(list);
                         rvSent.setVisibility(View.VISIBLE);
@@ -112,6 +109,7 @@ public class SentRequestsFragment extends Fragment implements MentorshipRequestA
 
             @Override
             public void onFailure(Call<List<MentorshipRequest>> call, Throwable t) {
+                if (!isAdded()) return;
                 progressSent.setVisibility(View.GONE);
                 swipeRefresh.setRefreshing(false);
                 String error = ApiErrorUtils.getNetworkErrorMessage(t);
@@ -127,26 +125,21 @@ public class SentRequestsFragment extends Fragment implements MentorshipRequestA
         tvErrorMsg.setText(msg);
     }
 
-    // Callbacks from Adapter actions
     @Override
-    public void onAccept(MentorshipRequest request) {
-        // Not used on Sent tab
-    }
+    public void onAccept(MentorshipRequest request) {}
 
     @Override
-    public void onReject(MentorshipRequest request) {
-        // Not used on Sent tab
-    }
+    public void onReject(MentorshipRequest request) {}
 
     @Override
     public void onComplete(MentorshipRequest request) {
-        if (isActionInProgress) return;
+        if (isActionInProgress || !isAdded()) return;
 
-        new AlertDialog.Builder(requireContext())
-                .setTitle("Complete Mentorship")
-                .setMessage("Are you sure you want to mark this mentorship as completed?")
-                .setPositiveButton("Complete", (dialog, which) -> {
-                    if (isActionInProgress) return;
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.dialog_complete_mentorship_title)
+                .setMessage(R.string.dialog_complete_mentorship_message)
+                .setPositiveButton(R.string.dialog_complete_mentorship_positive, (dialog, which) -> {
+                    if (isActionInProgress || !isAdded()) return;
                     isActionInProgress = true;
                     progressSent.setVisibility(View.VISIBLE);
 
@@ -154,6 +147,7 @@ public class SentRequestsFragment extends Fragment implements MentorshipRequestA
                         @Override
                         public void onResponse(Call<MentorshipRequest> call, Response<MentorshipRequest> response) {
                             isActionInProgress = false;
+                            if (!isAdded()) return;
                             progressSent.setVisibility(View.GONE);
                             if (response.isSuccessful()) {
                                 Toast.makeText(requireContext(), "Mentorship marked as COMPLETED!", Toast.LENGTH_SHORT).show();
@@ -167,13 +161,14 @@ public class SentRequestsFragment extends Fragment implements MentorshipRequestA
                         @Override
                         public void onFailure(Call<MentorshipRequest> call, Throwable t) {
                             isActionInProgress = false;
+                            if (!isAdded()) return;
                             progressSent.setVisibility(View.GONE);
                             String error = ApiErrorUtils.getNetworkErrorMessage(t);
                             Toast.makeText(requireContext(), error, Toast.LENGTH_LONG).show();
                         }
                     });
                 })
-                .setNegativeButton("Cancel", null)
+                .setNegativeButton(R.string.dialog_cancel_negative, null)
                 .show();
     }
 }

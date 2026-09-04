@@ -289,15 +289,7 @@ public class AlumniDetailsActivity extends AppCompatActivity {
     }
 
     private void openUrl(String url) {
-        if (url == null || url.trim().isEmpty()) return;
-        try {
-            String sanitized = url.startsWith("http") ? url : "https://" + url;
-            Uri uri = Uri.parse(sanitized);
-            Intent intent = new Intent(Intent.ACTION_VIEW, uri);
-            startActivity(intent);
-        } catch (Exception e) {
-            Toast.makeText(this, "Could not open URL.", Toast.LENGTH_SHORT).show();
-        }
+        com.alumniconnect.app.utils.UrlUtils.openUrlSafely(this, url);
     }
 
     private String getInitials(String name) {

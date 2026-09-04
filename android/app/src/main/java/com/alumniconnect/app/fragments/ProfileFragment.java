@@ -14,9 +14,13 @@ import androidx.fragment.app.Fragment;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.alumniconnect.app.R;
 import com.alumniconnect.app.activities.EditProfileActivity;
+import com.alumniconnect.app.activities.MainActivity;
 import com.alumniconnect.app.models.ProfileResponse;
 import com.alumniconnect.app.repositories.ProfileRepository;
+import com.alumniconnect.app.utils.ApiErrorUtils;
 import com.alumniconnect.app.utils.SessionManager;
+import com.alumniconnect.app.utils.UrlUtils;
+import com.google.android.material.progressindicator.LinearProgressIndicator;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -29,8 +33,12 @@ public class ProfileFragment extends Fragment {
     private TextView tvProfileError, tvProfileInitial, tvProfileName, tvProfileEmail;
     private TextView tvProfileRoleBadge;
     private LinearLayout layoutProfileFields;
-    private View btnEditProfile;
+    private View btnEditProfile, btnProfileAbout;
     private ProfileResponse currentProfile;
+
+    // Completion UI
+    private TextView tvCompletionPercentage, tvCompletionHint;
+    private LinearProgressIndicator progressProfileCompletion;
 
     @Nullable
     @Override
@@ -55,11 +63,24 @@ public class ProfileFragment extends Fragment {
         tvProfileRoleBadge = view.findViewById(R.id.tv_profile_role_badge);
         layoutProfileFields = view.findViewById(R.id.layout_profile_fields);
         btnEditProfile = view.findViewById(R.id.btn_edit_profile);
+        btnProfileAbout = view.findViewById(R.id.btn_profile_about);
+
+        tvCompletionPercentage = view.findViewById(R.id.tv_completion_percentage);
+        tvCompletionHint = view.findViewById(R.id.tv_completion_hint);
+        progressProfileCompletion = view.findViewById(R.id.progress_profile_completion);
 
         swipeRefresh.setColorSchemeResources(R.color.primary);
         swipeRefresh.setOnRefreshListener(() -> loadProfile(true));
 
         btnEditProfile.setOnClickListener(v -> openEditProfile());
+
+        if (btnProfileAbout != null) {
+            btnProfileAbout.setOnClickListener(v -> {
+                if (getActivity() instanceof MainActivity) {
+                    ((MainActivity) getActivity()).showAboutDialog();
+                }
+            });
+        }
 
         loadProfile(false);
     }
@@ -67,7 +88,6 @@ public class ProfileFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        // Refresh on return from EditProfileActivity
         loadProfile(false);
     }
 
@@ -80,6 +100,8 @@ public class ProfileFragment extends Fragment {
         profileRepository.getMyProfile().enqueue(new Callback<ProfileResponse>() {
             @Override
             public void onResponse(Call<ProfileResponse> call, Response<ProfileResponse> response) {
+                if (!isAdded()) return;
+
                 progressProfile.setVisibility(View.GONE);
                 swipeRefresh.setRefreshing(false);
 
@@ -92,64 +114,110 @@ public class ProfileFragment extends Fragment {
                         sessionManager.saveSession(sessionManager.getToken(),
                                 buildUserFromProfile(currentProfile));
                     }
-                } else if (response.code() == 401) {
-                    showError("Session expired. Please login again.");
                 } else {
-                    showError("Failed to load profile (HTTP " + response.code() + "). Pull to retry.");
+                    String error = ApiErrorUtils.getErrorMessage(response);
+                    showError(error);
                 }
             }
 
             @Override
             public void onFailure(Call<ProfileResponse> call, Throwable t) {
+                if (!isAdded()) return;
                 progressProfile.setVisibility(View.GONE);
                 swipeRefresh.setRefreshing(false);
-                showError("Network error. Pull down to retry.");
+                String error = ApiErrorUtils.getNetworkErrorMessage(t);
+                showError(error);
             }
         });
     }
 
     private void renderProfile(ProfileResponse profile) {
-        String name = profile.getName() != null ? profile.getName() : "Member";
-        String email = profile.getEmail() != null ? profile.getEmail() : "";
-        String role = profile.getRole() != null ? profile.getRole() : "student";
+        String name = profile.getName() != null ? profile.getName().trim() : "Member";
+        String email = profile.getEmail() != null ? profile.getEmail().trim() : "";
+        String role = profile.getRole() != null ? profile.getRole().trim() : "student";
 
         if (!name.isEmpty()) {
             tvProfileInitial.setText(String.valueOf(name.charAt(0)).toUpperCase());
         }
         tvProfileName.setText(name);
-        tvProfileEmail.setText(email);
+        tvUserField(tvProfileEmail, email);
         tvProfileRoleBadge.setText(role.toUpperCase());
 
         // Build dynamic profile field rows
         layoutProfileFields.removeAllViews();
 
+        int totalFields = 0;
+        int filledFields = 0;
+
         if ("alumni".equalsIgnoreCase(role)) {
-            addProfileField("Company", profile.getProfileString("company"));
-            addProfileField("Job Role", profile.getProfileString("job_role"));
-            addProfileField("Department", profile.getProfileString("department"));
-            addProfileField("Graduation Year", profile.getProfileString("graduation_year"));
-            addProfileField("Location", profile.getProfileString("location"));
-            addProfileField("Skills", profile.getProfileString("skills"));
-            addProfileField("Bio", profile.getProfileString("bio"));
-            addProfileField("LinkedIn", profile.getProfileString("linkedin_url"));
-            addProfileField("GitHub", profile.getProfileString("github_url"));
+            totalFields = 10;
+            filledFields += checkAndAddField("Company", profile.getProfileString("company"));
+            filledFields += checkAndAddField("Job Role", profile.getProfileString("job_role"));
+            filledFields += checkAndAddField("Department", profile.getProfileString("department"));
+            filledFields += checkAndAddField("Graduation Year", profile.getProfileString("graduation_year"));
+            filledFields += checkAndAddField("Location", profile.getProfileString("location"));
+            filledFields += checkAndAddField("Skills", profile.getProfileString("skills"));
+            filledFields += checkAndAddField("Bio", profile.getProfileString("bio"));
+            filledFields += checkAndAddLinkField("LinkedIn Profile", profile.getProfileString("linkedin_url"));
+            filledFields += checkAndAddLinkField("GitHub Profile", profile.getProfileString("github_url"));
+
             boolean mentoring = profile.getProfileBoolean("mentorship_available");
-            addProfileField("Available for Mentorship", mentoring ? "Yes ✓" : "No");
+            addProfileField("Available for Mentorship", mentoring ? "Yes, available to mentor students ✓" : "Not available at this time", null);
+            filledFields++; // mentoring choice exists
         } else if ("student".equalsIgnoreCase(role)) {
-            addProfileField("Branch / Program", profile.getProfileString("branch"));
-            addProfileField("Academic Year", profile.getProfileString("year"));
-            addProfileField("Skills", profile.getProfileString("skills"));
-            addProfileField("Career Interests", profile.getProfileString("interests"));
-            addProfileField("Bio", profile.getProfileString("bio"));
+            totalFields = 6;
+            filledFields += checkAndAddField("Branch / Program", profile.getProfileString("branch"));
+            filledFields += checkAndAddField("Academic Year", profile.getProfileString("year"));
+            filledFields += checkAndAddField("Skills", profile.getProfileString("skills"));
+            filledFields += checkAndAddField("Career Interests", profile.getProfileString("interests"));
+            filledFields += checkAndAddField("Bio", profile.getProfileString("bio"));
+            if (profile.getName() != null && !profile.getName().trim().isEmpty()) filledFields++;
         } else {
-            addProfileField("Account Type", "Administrator");
-            addProfileField("Name", name);
-            addProfileField("Email", email);
+            addProfileField("Account Type", "Administrator", null);
+            addProfileField("Name", name, null);
+            addProfileField("Email", email, null);
+            totalFields = 3;
+            filledFields = 3;
+        }
+
+        // Calculate and display percentage
+        if (totalFields > 0) {
+            int percentage = Math.min(100, Math.round((filledFields / (float) totalFields) * 100));
+            if (tvCompletionPercentage != null) {
+                tvCompletionPercentage.setText(percentage + "%");
+            }
+            if (progressProfileCompletion != null) {
+                progressProfileCompletion.setProgress(percentage);
+            }
+            if (tvCompletionHint != null) {
+                if (percentage == 100) {
+                    tvCompletionHint.setText("Your profile is complete! Other members can connect easily.");
+                } else {
+                    tvCompletionHint.setText("Complete remaining fields by tapping 'Edit Profile' below.");
+                }
+            }
         }
     }
 
-    private void addProfileField(String label, String value) {
-        if (value == null || value.trim().isEmpty()) return;
+    private int checkAndAddField(String label, String value) {
+        if (value != null && !value.trim().isEmpty() && !"null".equalsIgnoreCase(value.trim())) {
+            addProfileField(label, value.trim(), null);
+            return 1;
+        }
+        return 0;
+    }
+
+    private int checkAndAddLinkField(String label, String url) {
+        if (url != null && !url.trim().isEmpty() && !"null".equalsIgnoreCase(url.trim())) {
+            addProfileField(label, url.trim(), url.trim());
+            return 1;
+        }
+        return 0;
+    }
+
+    private void addProfileField(String label, String value, String clickableUrl) {
+        if (!isAdded() || getContext() == null) return;
+
         LinearLayout row = new LinearLayout(requireContext());
         row.setOrientation(LinearLayout.VERTICAL);
         row.setPadding(0, 0, 0, 14);
@@ -163,11 +231,30 @@ public class ProfileFragment extends Fragment {
         TextView tvValue = new TextView(requireContext());
         tvValue.setText(value);
         tvValue.setTextSize(13f);
-        tvValue.setTextColor(getResources().getColor(R.color.text_primary, null));
+
+        if (clickableUrl != null) {
+            tvValue.setTextColor(getResources().getColor(R.color.primary, null));
+            tvValue.setText("🔗 " + value);
+            row.setClickable(true);
+            row.setFocusable(true);
+            row.setOnClickListener(v -> UrlUtils.openUrlSafely(requireContext(), clickableUrl));
+        } else {
+            tvValue.setTextColor(getResources().getColor(R.color.text_primary, null));
+        }
 
         row.addView(tvLabel);
         row.addView(tvValue);
         layoutProfileFields.addView(row);
+    }
+
+    private void tvUserField(TextView tv, String val) {
+        if (tv == null) return;
+        if (val == null || val.trim().isEmpty() || "null".equalsIgnoreCase(val.trim())) {
+            tv.setVisibility(View.GONE);
+        } else {
+            tv.setText(val.trim());
+            tv.setVisibility(View.VISIBLE);
+        }
     }
 
     private void showError(String msg) {
@@ -176,6 +263,7 @@ public class ProfileFragment extends Fragment {
     }
 
     private void openEditProfile() {
+        if (!isAdded() || getContext() == null) return;
         Intent intent = new Intent(requireContext(), EditProfileActivity.class);
         if (currentProfile != null) {
             intent.putExtra("profile_name", currentProfile.getName());
@@ -199,7 +287,6 @@ public class ProfileFragment extends Fragment {
         startActivity(intent);
     }
 
-    /** Build minimal User object for SessionManager update */
     private com.alumniconnect.app.models.User buildUserFromProfile(ProfileResponse p) {
         com.alumniconnect.app.models.User u = new com.alumniconnect.app.models.User();
         u.setId(p.getId());

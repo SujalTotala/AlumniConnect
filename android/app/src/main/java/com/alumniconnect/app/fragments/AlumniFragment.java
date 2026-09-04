@@ -22,7 +22,9 @@ import com.alumniconnect.app.activities.AlumniDetailsActivity;
 import com.alumniconnect.app.adapters.AlumniAdapter;
 import com.alumniconnect.app.models.Alumni;
 import com.alumniconnect.app.repositories.AlumniRepository;
+import com.alumniconnect.app.utils.ApiErrorUtils;
 import com.google.android.material.chip.Chip;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.TextInputEditText;
 import java.util.List;
 import retrofit2.Call;
@@ -31,7 +33,6 @@ import retrofit2.Response;
 
 public class AlumniFragment extends Fragment {
 
-    // Search debounce delay (ms)
     private static final int DEBOUNCE_DELAY_MS = 400;
 
     private AlumniRepository alumniRepository;
@@ -47,7 +48,7 @@ public class AlumniFragment extends Fragment {
     private TextView tvErrorMsg, tvResultCount, tvEmptyMsg;
     private View btnRetry;
 
-    // Active filter state
+    // Active filter state (preserved across tab switches)
     private String activeSearch = null;
     private Boolean activeMentorshipFilter = null;   // null = no filter
     private String activeDeptFilter = null;
@@ -94,13 +95,31 @@ public class AlumniFragment extends Fragment {
         swipeRefresh.setColorSchemeResources(R.color.primary);
         swipeRefresh.setOnRefreshListener(() -> loadAlumni(true));
 
+        // Restore filter views if previously active
+        if (activeSearch != null && !activeSearch.isEmpty()) {
+            etSearch.setText(activeSearch);
+        }
+        if (Boolean.TRUE.equals(activeMentorshipFilter)) {
+            chipMentorship.setChecked(true);
+        }
+        if (activeDeptFilter != null) {
+            chipDept.setChecked(true);
+            chipDept.setText("Dept: " + activeDeptFilter);
+        }
+        if (activeYearFilter != null) {
+            chipYear.setChecked(true);
+            chipYear.setText("Year: " + activeYearFilter);
+        }
+        updateClearChipVisibility();
+
         // Search with debounce
         etSearch.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 if (debounceRunnable != null) debounceHandler.removeCallbacks(debounceRunnable);
                 debounceRunnable = () -> {
-                    activeSearch = s.toString().trim().isEmpty() ? null : s.toString().trim();
+                    String query = s.toString().trim();
+                    activeSearch = query.isEmpty() ? null : query;
                     updateClearChipVisibility();
                     loadAlumni(false);
                 };
@@ -109,27 +128,29 @@ public class AlumniFragment extends Fragment {
             @Override public void afterTextChanged(Editable s) {}
         });
 
-        // Mentorship filter chip (toggle)
+        // Mentorship filter chip
         chipMentorship.setOnCheckedChangeListener((buttonView, isChecked) -> {
             activeMentorshipFilter = isChecked ? true : null;
             updateClearChipVisibility();
             loadAlumni(false);
         });
 
-        // Department filter chip — shows an input dialog
+        // Department filter chip
         chipDept.setOnClickListener(v -> showTextFilterDialog("Filter by Department", "e.g. Computer Science",
                 current -> {
                     activeDeptFilter = current;
                     chipDept.setChecked(current != null);
+                    chipDept.setText(current != null ? "Dept: " + current : "Department");
                     updateClearChipVisibility();
                     loadAlumni(false);
                 }));
 
-        // Graduation Year filter chip — shows an input dialog
+        // Graduation Year filter chip
         chipYear.setOnClickListener(v -> showTextFilterDialog("Filter by Graduation Year", "e.g. 2022",
                 current -> {
                     activeYearFilter = current;
                     chipYear.setChecked(current != null);
+                    chipYear.setText(current != null ? "Year: " + current : "Batch Year");
                     updateClearChipVisibility();
                     loadAlumni(false);
                 }));
@@ -145,10 +166,13 @@ public class AlumniFragment extends Fragment {
     }
 
     @Override
-    public void onResume() {
-        super.onResume();
-        // Refresh when user returns to tab
-        if (adapter.getAlumniCount() == 0) loadAlumni(false);
+    public void onDestroyView() {
+        super.onDestroyView();
+        // Prevent background callback execution when view is destroyed
+        if (debounceRunnable != null) {
+            debounceHandler.removeCallbacks(debounceRunnable);
+            debounceRunnable = null;
+        }
     }
 
     private void loadAlumni(boolean fromSwipe) {
@@ -165,6 +189,8 @@ public class AlumniFragment extends Fragment {
                 .enqueue(new Callback<List<Alumni>>() {
                     @Override
                     public void onResponse(Call<List<Alumni>> call, Response<List<Alumni>> response) {
+                        if (!isAdded()) return;
+
                         progressAlumni.setVisibility(View.GONE);
                         swipeRefresh.setRefreshing(false);
 
@@ -176,8 +202,8 @@ public class AlumniFragment extends Fragment {
                                 rvAlumni.setVisibility(View.GONE);
                                 layoutEmpty.setVisibility(View.VISIBLE);
                                 tvEmptyMsg.setText(hasActiveFilters()
-                                        ? "No alumni match your search/filters."
-                                        : "No alumni in the directory yet.");
+                                        ? getString(R.string.empty_alumni_filtered)
+                                        : getString(R.string.empty_alumni));
                                 tvResultCount.setText("");
                             } else {
                                 adapter.setAlumniList(list);
@@ -185,18 +211,19 @@ public class AlumniFragment extends Fragment {
                                 layoutEmpty.setVisibility(View.GONE);
                                 tvResultCount.setText(list.size() + " alumni found");
                             }
-                        } else if (response.code() == 401) {
-                            showError("Session expired. Please login again.");
                         } else {
-                            showError("Server error (HTTP " + response.code() + "). Pull to retry.");
+                            String errorMsg = ApiErrorUtils.getErrorMessage(response);
+                            showError(errorMsg);
                         }
                     }
 
                     @Override
                     public void onFailure(Call<List<Alumni>> call, Throwable t) {
+                        if (!isAdded()) return;
                         progressAlumni.setVisibility(View.GONE);
                         swipeRefresh.setRefreshing(false);
-                        showError("Network unavailable. Check connection and retry.");
+                        String errorMsg = ApiErrorUtils.getNetworkErrorMessage(t);
+                        showError(errorMsg);
                     }
                 });
     }
@@ -217,7 +244,9 @@ public class AlumniFragment extends Fragment {
         etSearch.setText("");
         chipMentorship.setChecked(false);
         chipDept.setChecked(false);
+        chipDept.setText("Department");
         chipYear.setChecked(false);
+        chipYear.setText("Batch Year");
         chipClear.setVisibility(View.GONE);
         loadAlumni(false);
     }
@@ -234,37 +263,38 @@ public class AlumniFragment extends Fragment {
     }
 
     private void openAlumniDetails(Alumni alumni) {
+        if (!isAdded() || getContext() == null) return;
         Intent intent = new Intent(requireContext(), AlumniDetailsActivity.class);
-        // Pass ID — details activity will re-fetch fresh data from GET /alumni/{id}
         intent.putExtra("alumni_id", alumni.getId());
-        // Also pass name for immediate display while loading
         intent.putExtra("alumni_name", alumni.getDisplayName());
         startActivity(intent);
     }
 
-    /** Minimal inline text-input dialog for dept/year filters */
     private void showTextFilterDialog(String title, String hint, FilterCallback callback) {
-        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(requireContext());
-        builder.setTitle(title);
+        if (!isAdded() || getContext() == null) return;
 
         final android.widget.EditText input = new android.widget.EditText(requireContext());
         input.setHint(hint);
-        input.setPadding(32, 16, 32, 16);
+        input.setPadding(40, 24, 40, 24);
         input.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
-        // Pre-fill if active
-        if ("Filter by Department".equals(title) && activeDeptFilter != null)
-            input.setText(activeDeptFilter);
-        if ("Filter by Graduation Year".equals(title) && activeYearFilter != null)
-            input.setText(activeYearFilter);
 
-        builder.setView(input);
-        builder.setPositiveButton("Apply", (dialog, which) -> {
-            String value = input.getText().toString().trim();
-            callback.onFilter(value.isEmpty() ? null : value);
-        });
-        builder.setNeutralButton("Clear", (dialog, which) -> callback.onFilter(null));
-        builder.setNegativeButton("Cancel", null);
-        builder.show();
+        if ("Filter by Department".equals(title) && activeDeptFilter != null) {
+            input.setText(activeDeptFilter);
+        }
+        if ("Filter by Graduation Year".equals(title) && activeYearFilter != null) {
+            input.setText(activeYearFilter);
+        }
+
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(title)
+                .setView(input)
+                .setPositiveButton(R.string.btn_apply_filter, (dialog, which) -> {
+                    String value = input.getText().toString().trim();
+                    callback.onFilter(value.isEmpty() ? null : value);
+                })
+                .setNeutralButton(R.string.btn_clear_filter, (dialog, which) -> callback.onFilter(null))
+                .setNegativeButton(R.string.dialog_cancel_negative, null)
+                .show();
     }
 
     interface FilterCallback {

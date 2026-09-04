@@ -212,23 +212,16 @@ public class OpportunityDetailsActivity extends AppCompatActivity {
 
     private void applyToOpportunity() {
         if (currentOpp == null || !Opportunity.hasValue(currentOpp.getApplicationUrl())) return;
-        try {
-            String url = currentOpp.getApplicationUrl().trim();
-            String sanitized = url.startsWith("http") ? url : "https://" + url;
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(sanitized));
-            startActivity(intent);
-        } catch (Exception e) {
-            Toast.makeText(this, "Could not open application link.", Toast.LENGTH_SHORT).show();
-        }
+        com.alumniconnect.app.utils.UrlUtils.openUrlSafely(this, currentOpp.getApplicationUrl());
     }
 
     private void confirmDeletion() {
         if (isDeleting) return;
-        new AlertDialog.Builder(this)
-                .setTitle("Delete Opportunity")
-                .setMessage("Are you sure you want to delete this career post?")
-                .setPositiveButton("Delete", (dialog, which) -> deletePost())
-                .setNegativeButton("Cancel", null)
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.dialog_delete_opportunity_title)
+                .setMessage(R.string.dialog_delete_opportunity_message)
+                .setPositiveButton(R.string.dialog_delete_opportunity_positive, (dialog, which) -> deletePost())
+                .setNegativeButton(R.string.dialog_cancel_negative, null)
                 .show();
     }
 

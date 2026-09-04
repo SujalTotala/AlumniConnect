@@ -22,7 +22,9 @@ import com.alumniconnect.app.activities.AlumniDetailsActivity;
 import com.alumniconnect.app.adapters.AlumniAdapter;
 import com.alumniconnect.app.models.Alumni;
 import com.alumniconnect.app.repositories.MentorshipRepository;
+import com.alumniconnect.app.utils.ApiErrorUtils;
 import com.google.android.material.textfield.TextInputEditText;
+import java.util.ArrayList;
 import java.util.List;
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -77,12 +79,17 @@ public class AvailableMentorsFragment extends Fragment {
         swipeRefresh.setColorSchemeResources(R.color.primary);
         swipeRefresh.setOnRefreshListener(() -> loadMentors(true));
 
+        if (searchKeyword != null && !searchKeyword.isEmpty()) {
+            etSearch.setText(searchKeyword);
+        }
+
         etSearch.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 if (debounceRunnable != null) debounceHandler.removeCallbacks(debounceRunnable);
                 debounceRunnable = () -> {
-                    searchKeyword = s.toString().trim().isEmpty() ? null : s.toString().trim();
+                    String q = s.toString().trim();
+                    searchKeyword = q.isEmpty() ? null : q;
                     loadMentors(false);
                 };
                 debounceHandler.postDelayed(debounceRunnable, SEARCH_DEBOUNCE_MS);
@@ -96,9 +103,12 @@ public class AvailableMentorsFragment extends Fragment {
     }
 
     @Override
-    public void onResume() {
-        super.onResume();
-        loadMentors(false);
+    public void onDestroyView() {
+        super.onDestroyView();
+        if (debounceRunnable != null) {
+            debounceHandler.removeCallbacks(debounceRunnable);
+            debounceRunnable = null;
+        }
     }
 
     private void loadMentors(boolean fromSwipe) {
@@ -109,62 +119,60 @@ public class AvailableMentorsFragment extends Fragment {
             rvMentors.setVisibility(View.GONE);
         }
 
-        // Available mentors endpoint doesn't support generic 'search' param, but supports 'department', 'company', 'skills'
-        // We will pass searchKeyword to department, company, and skills filters (or filter client side for better matching).
-        // Since backend has:
-        // query = db.query(Alumni).filter(Alumni.mentorship_available == True)
-        // and optional params: department, company, skills
-        // Let's pass searchKeyword as skills to see if it matches, or simply load all available mentors and do lightweight client side filtering!
-        // Client-side filtering is extremely robust and avoids missing mentors if the backend filters are strict AND/OR.
-        // Let's do client-side filtering if searchKeyword is present, otherwise get all available mentors.
-        // This guarantees maximum correctness and "Wow" user experience!
-        
         mentorshipRepository.getMentors(null, null, null).enqueue(new Callback<List<Alumni>>() {
             @Override
             public void onResponse(Call<List<Alumni>> call, Response<List<Alumni>> response) {
+                if (!isAdded()) return;
+
                 progressMentors.setVisibility(View.GONE);
                 swipeRefresh.setRefreshing(false);
 
                 if (response.isSuccessful() && response.body() != null) {
-                    List<Alumni> list = response.body();
-                    layoutError.setVisibility(View.GONE);
+                    List<Alumni> rawList = response.body();
+                    List<Alumni> filtered = new ArrayList<>();
 
-                    // Client side search matching name, department, company, skills, location
                     if (searchKeyword != null) {
                         String query = searchKeyword.toLowerCase();
-                        list.removeIf(alumni -> {
+                        for (Alumni alumni : rawList) {
                             boolean matchName = alumni.getDisplayName().toLowerCase().contains(query);
                             boolean matchDept = alumni.getDepartment() != null && alumni.getDepartment().toLowerCase().contains(query);
                             boolean matchCompany = alumni.getCompany() != null && alumni.getCompany().toLowerCase().contains(query);
                             boolean matchSkills = alumni.getSkills() != null && alumni.getSkills().toLowerCase().contains(query);
                             boolean matchLoc = alumni.getLocation() != null && alumni.getLocation().toLowerCase().contains(query);
-                            return !(matchName || matchDept || matchCompany || matchSkills || matchLoc);
-                        });
+                            if (matchName || matchDept || matchCompany || matchSkills || matchLoc) {
+                                filtered.add(alumni);
+                            }
+                        }
+                    } else {
+                        filtered.addAll(rawList);
                     }
 
-                    if (list.isEmpty()) {
+                    layoutError.setVisibility(View.GONE);
+
+                    if (filtered.isEmpty()) {
                         rvMentors.setVisibility(View.GONE);
                         tvEmpty.setVisibility(View.VISIBLE);
-                        tvEmpty.setText(searchKeyword != null 
-                                ? "No mentors match your search query." 
-                                : "No mentors available right now.");
+                        tvEmpty.setText(searchKeyword != null
+                                ? getString(R.string.empty_mentors_filtered)
+                                : getString(R.string.empty_mentors));
                     } else {
-                        adapter.setAlumniList(list);
+                        adapter.setAlumniList(filtered);
                         rvMentors.setVisibility(View.VISIBLE);
                         tvEmpty.setVisibility(View.GONE);
                     }
-                } else if (response.code() == 401) {
-                    showError("Session expired. Please login again.");
                 } else {
-                    showError("Server error loading mentors (HTTP " + response.code() + ")");
+                    String errorMsg = ApiErrorUtils.getErrorMessage(response);
+                    showError(errorMsg);
                 }
             }
 
             @Override
             public void onFailure(Call<List<Alumni>> call, Throwable t) {
+                if (!isAdded()) return;
                 progressMentors.setVisibility(View.GONE);
                 swipeRefresh.setRefreshing(false);
-                showError("Network error. Check connection and retry.");
+                String errorMsg = ApiErrorUtils.getNetworkErrorMessage(t);
+                showError(errorMsg);
             }
         });
     }
@@ -177,6 +185,7 @@ public class AvailableMentorsFragment extends Fragment {
     }
 
     private void openMentorDetails(Alumni alumni) {
+        if (!isAdded() || getContext() == null) return;
         Intent intent = new Intent(requireContext(), AlumniDetailsActivity.class);
         intent.putExtra("alumni_id", alumni.getId());
         intent.putExtra("alumni_name", alumni.getDisplayName());

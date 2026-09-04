@@ -136,6 +136,7 @@ public class CreateOpportunityActivity extends AppCompatActivity {
                 isSubmitting = false;
                 setLoading(false);
                 if (response.isSuccessful()) {
+                    com.alumniconnect.app.utils.KeyboardUtils.hideKeyboard(CreateOpportunityActivity.this);
                     showSuccess("Opportunity shared successfully!");
                     // Clear fields
                     etTitle.setText("");

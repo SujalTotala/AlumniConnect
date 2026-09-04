@@ -23,6 +23,7 @@ import com.alumniconnect.app.activities.EventDetailsActivity;
 import com.alumniconnect.app.adapters.EventAdapter;
 import com.alumniconnect.app.models.Event;
 import com.alumniconnect.app.repositories.EventRepository;
+import com.alumniconnect.app.utils.ApiErrorUtils;
 import com.alumniconnect.app.utils.SessionManager;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
@@ -50,6 +51,7 @@ public class EventsFragment extends Fragment {
     private View btnRetry;
     private FloatingActionButton fabCreateEvent;
 
+    // Active state preserved across tab switches
     private String activeSearch = null;
     private String activeEventType = null;
 
@@ -92,13 +94,19 @@ public class EventsFragment extends Fragment {
         swipeRefresh.setColorSchemeResources(R.color.primary);
         swipeRefresh.setOnRefreshListener(() -> loadEvents(true));
 
+        // Restore active search text if previously typed
+        if (activeSearch != null && !activeSearch.isEmpty()) {
+            etSearch.setText(activeSearch);
+        }
+
         // Search with debounce
         etSearch.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 if (debounceRunnable != null) debounceHandler.removeCallbacks(debounceRunnable);
                 debounceRunnable = () -> {
-                    activeSearch = s.toString().trim().isEmpty() ? null : s.toString().trim();
+                    String query = s.toString().trim();
+                    activeSearch = query.isEmpty() ? null : query;
                     loadEvents(false);
                 };
                 debounceHandler.postDelayed(debounceRunnable, DEBOUNCE_DELAY_MS);
@@ -148,6 +156,7 @@ public class EventsFragment extends Fragment {
         if ("admin".equals(role) || "alumni".equals(role)) {
             fabCreateEvent.setVisibility(View.VISIBLE);
             fabCreateEvent.setOnClickListener(v -> {
+                if (!isAdded()) return;
                 Intent intent = new Intent(requireContext(), CreateEventActivity.class);
                 startActivity(intent);
             });
@@ -157,10 +166,12 @@ public class EventsFragment extends Fragment {
     }
 
     @Override
-    public void onResume() {
-        super.onResume();
-        // Load latest list when fragment resumes
-        loadEvents(false);
+    public void onDestroyView() {
+        super.onDestroyView();
+        if (debounceRunnable != null) {
+            debounceHandler.removeCallbacks(debounceRunnable);
+            debounceRunnable = null;
+        }
     }
 
     private void loadEvents(boolean fromSwipe) {
@@ -175,6 +186,8 @@ public class EventsFragment extends Fragment {
         eventRepository.getEvents(activeEventType, activeSearch).enqueue(new Callback<List<Event>>() {
             @Override
             public void onResponse(Call<List<Event>> call, Response<List<Event>> response) {
+                if (!isAdded()) return;
+
                 progressEvents.setVisibility(View.GONE);
                 swipeRefresh.setRefreshing(false);
 
@@ -186,8 +199,8 @@ public class EventsFragment extends Fragment {
                         rvEvents.setVisibility(View.GONE);
                         layoutEmpty.setVisibility(View.VISIBLE);
                         tvEmptyMsg.setText(hasActiveFilters()
-                                ? "No events match your search/filters."
-                                : "No upcoming events scheduled.");
+                                ? getString(R.string.empty_events_filtered)
+                                : getString(R.string.empty_events));
                         tvResultCount.setText("");
                     } else {
                         adapter.setEventList(list);
@@ -195,18 +208,19 @@ public class EventsFragment extends Fragment {
                         layoutEmpty.setVisibility(View.GONE);
                         tvResultCount.setText(list.size() + " events found");
                     }
-                } else if (response.code() == 401) {
-                    showError("Session expired. Please login again.");
                 } else {
-                    showError("Server error (HTTP " + response.code() + "). Pull to retry.");
+                    String errorMsg = ApiErrorUtils.getErrorMessage(response);
+                    showError(errorMsg);
                 }
             }
 
             @Override
             public void onFailure(Call<List<Event>> call, Throwable t) {
+                if (!isAdded()) return;
                 progressEvents.setVisibility(View.GONE);
                 swipeRefresh.setRefreshing(false);
-                showError("Network unavailable. Check connection and retry.");
+                String errorMsg = ApiErrorUtils.getNetworkErrorMessage(t);
+                showError(errorMsg);
             }
         });
     }
@@ -225,6 +239,7 @@ public class EventsFragment extends Fragment {
     }
 
     private void openEventDetails(Event event) {
+        if (!isAdded() || getContext() == null) return;
         Intent intent = new Intent(requireContext(), EventDetailsActivity.class);
         intent.putExtra("event_id", event.getId());
         intent.putExtra("event_title", event.getTitle());

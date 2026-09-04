@@ -169,6 +169,7 @@ public class EditProfileActivity extends AppCompatActivity {
                         u.setRole(updated.getRole());
                         sessionManager.saveSession(sessionManager.getToken(), u);
                     }
+                    com.alumniconnect.app.utils.KeyboardUtils.hideKeyboard(EditProfileActivity.this);
                     showSuccess("Profile updated successfully!");
                 } else {
                     String msg = ApiErrorUtils.getErrorMessage(response);

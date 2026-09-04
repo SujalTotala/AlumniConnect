@@ -105,7 +105,7 @@ public class EventDetailsActivity extends AppCompatActivity {
 
         // Listeners
         btnRegister.setOnClickListener(v -> registerForEvent());
-        btnCancelRegistration.setOnClickListener(v -> cancelRegistration());
+        btnCancelRegistration.setOnClickListener(v -> confirmCancelRegistration());
         btnJoinOnline.setOnClickListener(v -> joinOnline());
         btnViewRegistrations.setOnClickListener(v -> viewRegistrations());
         btnRetry.setOnClickListener(v -> fetchEventDetails());
@@ -262,6 +262,16 @@ public class EventDetailsActivity extends AppCompatActivity {
         });
     }
 
+    private void confirmCancelRegistration() {
+        if (isRegistrationInProgress) return;
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.dialog_cancel_rsvp_title)
+                .setMessage(R.string.dialog_cancel_rsvp_message)
+                .setPositiveButton(R.string.dialog_cancel_rsvp_positive, (dialog, which) -> cancelRegistration())
+                .setNegativeButton(R.string.dialog_keep_rsvp_negative, null)
+                .show();
+    }
+
     private void cancelRegistration() {
         if (isRegistrationInProgress) return;
         setRegistrationLoading(true);
@@ -305,14 +315,7 @@ public class EventDetailsActivity extends AppCompatActivity {
 
     private void joinOnline() {
         if (currentEvent == null || !currentEvent.isOnline()) return;
-        try {
-            String url = currentEvent.getMeetingUrl();
-            String sanitized = url.startsWith("http") ? url : "https://" + url;
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(sanitized));
-            startActivity(intent);
-        } catch (Exception e) {
-            Toast.makeText(this, "Could not open meeting link.", Toast.LENGTH_SHORT).show();
-        }
+        com.alumniconnect.app.utils.UrlUtils.openUrlSafely(this, currentEvent.getMeetingUrl());
     }
 
     private void viewRegistrations() {

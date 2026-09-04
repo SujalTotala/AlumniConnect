@@ -155,6 +155,7 @@ public class CreateEventActivity extends AppCompatActivity {
                 isSubmitting = false;
                 setLoading(false);
                 if (response.isSuccessful()) {
+                    com.alumniconnect.app.utils.KeyboardUtils.hideKeyboard(CreateEventActivity.this);
                     showSuccess("Event created successfully!");
                     // Clear inputs
                     etTitle.setText("");

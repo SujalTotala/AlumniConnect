@@ -6,8 +6,11 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.MenuItem;
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentManager;
+import androidx.fragment.app.FragmentTransaction;
 import com.alumniconnect.app.R;
 import com.alumniconnect.app.fragments.AlumniFragment;
 import com.alumniconnect.app.fragments.EventsFragment;
@@ -22,6 +25,7 @@ import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.badge.BadgeDrawable;
 import com.google.android.material.badge.BadgeUtils;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -30,7 +34,17 @@ public class MainActivity extends AppCompatActivity {
     private SessionManager sessionManager;
     private BottomNavigationView bottomNav;
 
-    // Notification Unread Badge
+    // Fragment instance state retention tags
+    private static final String TAG_HOME = "tab_home";
+    private static final String TAG_ALUMNI = "tab_alumni";
+    private static final String TAG_EVENTS = "tab_events";
+    private static final String TAG_MENTORSHIP = "tab_mentorship";
+    private static final String TAG_PROFILE = "tab_profile";
+    private static final String TAG_OPPORTUNITIES = "screen_opportunities";
+
+    private String currentTag = TAG_HOME;
+
+    // Notification Unread Badge & Polling
     private NotificationRepository notificationRepository;
     private BadgeDrawable notificationBadge;
     private final Handler pollHandler = new Handler(Looper.getMainLooper());
@@ -51,13 +65,16 @@ public class MainActivity extends AppCompatActivity {
         toolbar.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
             if (id == R.id.action_logout) {
-                performLogout();
+                confirmLogout();
+                return true;
+            } else if (id == R.id.action_about) {
+                showAboutDialog();
                 return true;
             } else if (id == R.id.action_profile) {
                 navigateToTab(R.id.nav_profile);
                 return true;
             } else if (id == R.id.action_opportunities) {
-                loadFragment(new OpportunitiesFragment());
+                switchTabFragment(TAG_OPPORTUNITIES);
                 return true;
             } else if (id == R.id.action_notifications) {
                 Intent intent = new Intent(MainActivity.this, NotificationsActivity.class);
@@ -72,31 +89,39 @@ public class MainActivity extends AppCompatActivity {
         bottomNav.setOnItemSelectedListener(item -> {
             int id = item.getItemId();
             if (id == R.id.nav_home) {
-                loadFragment(new HomeFragment());
+                switchTabFragment(TAG_HOME);
                 return true;
             } else if (id == R.id.nav_alumni) {
-                loadFragment(new AlumniFragment());
+                switchTabFragment(TAG_ALUMNI);
                 return true;
             } else if (id == R.id.nav_events) {
-                loadFragment(new EventsFragment());
+                switchTabFragment(TAG_EVENTS);
                 return true;
             } else if (id == R.id.nav_mentorship) {
-                loadFragment(new MentorshipFragment());
+                switchTabFragment(TAG_MENTORSHIP);
                 return true;
             } else if (id == R.id.nav_profile) {
-                loadFragment(new ProfileFragment());
+                switchTabFragment(TAG_PROFILE);
                 return true;
             }
             return false;
         });
 
-        // Default fragment on open
-        if (savedInstanceState == null) {
-            bottomNav.setSelectedItemId(R.id.nav_home);
+        // Restore active tag or default to Home
+        if (savedInstanceState != null) {
+            currentTag = savedInstanceState.getString("active_tag", TAG_HOME);
+        } else {
+            switchTabFragment(TAG_HOME);
         }
 
         // Handle target deep links if any
         handleDeepLinkIntent(getIntent());
+    }
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putString("active_tag", currentTag);
     }
 
     @Override
@@ -108,6 +133,18 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        stopUnreadPolling();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        stopUnreadPolling();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
         stopUnreadPolling();
     }
 
@@ -126,10 +163,73 @@ public class MainActivity extends AppCompatActivity {
             } else if ("events".equals(target)) {
                 navigateToTab(R.id.nav_events);
             } else if ("opportunities".equals(target)) {
-                loadFragment(new OpportunitiesFragment());
+                switchTabFragment(TAG_OPPORTUNITIES);
             }
             intent.removeExtra("target_fragment");
         }
+    }
+
+    /**
+     * Preserves fragment instances, loaded data, scroll positions, and search/filter states
+     * by using show/hide instead of repeatedly recreating fragments on tab switches.
+     */
+    public void switchTabFragment(String targetTag) {
+        FragmentManager fm = getSupportFragmentManager();
+        Fragment currentFrag = fm.findFragmentByTag(currentTag);
+        Fragment targetFrag = fm.findFragmentByTag(targetTag);
+
+        FragmentTransaction ft = fm.beginTransaction();
+
+        // Hide current fragment if visible
+        if (currentFrag != null && currentFrag.isAdded()) {
+            ft.hide(currentFrag);
+        }
+
+        // Target fragment: show if already added, instantiate and add if new
+        if (targetFrag != null && targetFrag.isAdded()) {
+            ft.show(targetFrag);
+        } else {
+            targetFrag = createFragmentByTag(targetTag);
+            ft.add(R.id.fragment_container, targetFrag, targetTag);
+        }
+
+        ft.commitAllowingStateLoss();
+        currentTag = targetTag;
+    }
+
+    private Fragment createFragmentByTag(String tag) {
+        switch (tag) {
+            case TAG_ALUMNI:
+                return new AlumniFragment();
+            case TAG_EVENTS:
+                return new EventsFragment();
+            case TAG_MENTORSHIP:
+                return new MentorshipFragment();
+            case TAG_PROFILE:
+                return new ProfileFragment();
+            case TAG_OPPORTUNITIES:
+                return new OpportunitiesFragment();
+            case TAG_HOME:
+            default:
+                return new HomeFragment();
+        }
+    }
+
+    /** Legacy adapter helper */
+    public void loadFragment(Fragment fragment) {
+        if (fragment instanceof OpportunitiesFragment) {
+            switchTabFragment(TAG_OPPORTUNITIES);
+        } else {
+            getSupportFragmentManager()
+                    .beginTransaction()
+                    .replace(R.id.fragment_container, fragment)
+                    .commitAllowingStateLoss();
+        }
+    }
+
+    /** Called by child fragments to switch to a specific bottom nav tab */
+    public void navigateToTab(int navItemId) {
+        bottomNav.setSelectedItemId(navItemId);
     }
 
     private void startUnreadPolling() {
@@ -192,19 +292,29 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public void loadFragment(Fragment fragment) {
-        getSupportFragmentManager()
-                .beginTransaction()
-                .replace(R.id.fragment_container, fragment)
-                .commit();
+    private void confirmLogout() {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.dialog_logout_title)
+                .setMessage(R.string.dialog_logout_message)
+                .setPositiveButton(R.string.dialog_logout_positive, (dialog, which) -> performLogout())
+                .setNegativeButton(R.string.dialog_cancel_negative, null)
+                .show();
     }
 
-    /** Called by fragments to switch to a specific bottom nav tab */
-    public void navigateToTab(int navItemId) {
-        bottomNav.setSelectedItemId(navItemId);
+    public void showAboutDialog() {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("About AlumniConnect")
+                .setMessage("AlumniConnect — Version 1.0\n\n"
+                        + "Digital Platform for Centralized Alumni Data Management and Engagement.\n\n"
+                        + "Production Service:\nhttps://alumniconnect-bwoi.onrender.com/\n\n"
+                        + "Status: Connected & Operational")
+                .setPositiveButton("OK", null)
+                .setNeutralButton("Sign Out", (dialog, which) -> confirmLogout())
+                .show();
     }
 
     private void performLogout() {
+        stopUnreadPolling();
         sessionManager.clearSession();
         Intent intent = new Intent(this, LoginActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);

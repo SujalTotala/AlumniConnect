@@ -1,6 +1,5 @@
 package com.alumniconnect.app.fragments;
 
-import android.content.Intent;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -14,9 +13,14 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.alumniconnect.app.R;
 import com.alumniconnect.app.activities.MainActivity;
 import com.alumniconnect.app.models.AdminStatistics;
+import com.alumniconnect.app.models.Event;
+import com.alumniconnect.app.models.ProfileResponse;
 import com.alumniconnect.app.repositories.AdminRepository;
+import com.alumniconnect.app.repositories.EventRepository;
+import com.alumniconnect.app.repositories.ProfileRepository;
+import com.alumniconnect.app.utils.ApiErrorUtils;
 import com.alumniconnect.app.utils.SessionManager;
-import com.alumniconnect.app.fragments.OpportunitiesFragment;
+import java.util.List;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -24,6 +28,9 @@ import retrofit2.Response;
 public class HomeFragment extends Fragment {
     private SessionManager sessionManager;
     private AdminRepository adminRepository;
+    private ProfileRepository profileRepository;
+    private EventRepository eventRepository;
+
     private SwipeRefreshLayout swipeRefresh;
     private TextView tvWelcome, tvUserEmail, tvRoleBadge, tvHomeStatus;
     private LinearLayout layoutAdminStats, layoutQuickActions;
@@ -44,6 +51,8 @@ public class HomeFragment extends Fragment {
 
         sessionManager = new SessionManager(requireContext());
         adminRepository = new AdminRepository(requireContext());
+        profileRepository = new ProfileRepository(requireContext());
+        eventRepository = new EventRepository(requireContext());
 
         swipeRefresh = view.findViewById(R.id.swipe_refresh);
         tvWelcome = view.findViewById(R.id.tv_welcome);
@@ -67,7 +76,7 @@ public class HomeFragment extends Fragment {
         // Populate session-based user info
         populateUserInfo();
 
-        // Navigation card clicks  → navigate to BottomNav tabs
+        // Navigation card clicks -> navigate to BottomNav tabs
         cardAlumni.setOnClickListener(v -> navigateToTab(R.id.nav_alumni));
         cardMentorship.setOnClickListener(v -> navigateToTab(R.id.nav_mentorship));
         cardEvents.setOnClickListener(v -> navigateToTab(R.id.nav_events));
@@ -81,15 +90,9 @@ public class HomeFragment extends Fragment {
             cardAdminOpportunities.setOnClickListener(v -> loadOpportunitiesFragment());
         }
 
-        // SwipeRefreshLayout
+        // SwipeRefreshLayout works for ALL users
         swipeRefresh.setColorSchemeResources(R.color.primary);
-        swipeRefresh.setOnRefreshListener(() -> {
-            if ("admin".equalsIgnoreCase(sessionManager.getUserRole())) {
-                fetchAdminStats();
-            } else {
-                swipeRefresh.setRefreshing(false);
-            }
-        });
+        swipeRefresh.setOnRefreshListener(() -> refreshDashboardData());
 
         // Load role-specific content
         loadDashboard();
@@ -98,10 +101,7 @@ public class HomeFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        // Refresh on return
-        if ("admin".equalsIgnoreCase(sessionManager.getUserRole())) {
-            fetchAdminStats();
-        }
+        populateUserInfo();
     }
 
     private void populateUserInfo() {
@@ -121,7 +121,46 @@ public class HomeFragment extends Fragment {
             fetchAdminStats();
         } else {
             layoutQuickActions.setVisibility(View.VISIBLE);
+            refreshUserData();
         }
+    }
+
+    private void refreshDashboardData() {
+        String role = sessionManager.getUserRole().toLowerCase();
+        if ("admin".equals(role)) {
+            fetchAdminStats();
+        } else {
+            refreshUserData();
+        }
+    }
+
+    private void refreshUserData() {
+        // Sync user profile from server to refresh any name/role changes made on web
+        profileRepository.getMyProfile().enqueue(new Callback<ProfileResponse>() {
+            @Override
+            public void onResponse(Call<ProfileResponse> call, Response<ProfileResponse> response) {
+                if (!isAdded()) return;
+                swipeRefresh.setRefreshing(false);
+                if (response.isSuccessful() && response.body() != null) {
+                    ProfileResponse p = response.body();
+                    if (p.getName() != null) {
+                        com.alumniconnect.app.models.User u = new com.alumniconnect.app.models.User();
+                        u.setId(p.getId());
+                        u.setName(p.getName());
+                        u.setEmail(p.getEmail());
+                        u.setRole(p.getRole());
+                        sessionManager.saveSession(sessionManager.getToken(), u);
+                        populateUserInfo();
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Call<ProfileResponse> call, Throwable t) {
+                if (!isAdded()) return;
+                swipeRefresh.setRefreshing(false);
+            }
+        });
     }
 
     private void fetchAdminStats() {
@@ -129,6 +168,7 @@ public class HomeFragment extends Fragment {
         adminRepository.getStatistics().enqueue(new Callback<AdminStatistics>() {
             @Override
             public void onResponse(Call<AdminStatistics> call, Response<AdminStatistics> response) {
+                if (!isAdded()) return;
                 swipeRefresh.setRefreshing(false);
                 if (response.isSuccessful() && response.body() != null) {
                     AdminStatistics stats = response.body();
@@ -139,17 +179,18 @@ public class HomeFragment extends Fragment {
                     if (tvActiveMentors != null) tvActiveMentors.setText(String.valueOf(stats.getActiveMentors()));
                     if (tvTotalOpportunities != null) tvTotalOpportunities.setText(String.valueOf(stats.getTotalOpportunities()));
                     if (tvPendingMentorship != null) tvPendingMentorship.setText(String.valueOf(stats.getPendingMentorshipRequests()));
-                } else if (response.code() == 401 || response.code() == 403) {
-                    showStatus("Access restricted. Please login again.");
                 } else {
-                    showStatus("Unable to load statistics (HTTP " + response.code() + ")");
+                    String error = ApiErrorUtils.getErrorMessage(response);
+                    showStatus(error);
                 }
             }
 
             @Override
             public void onFailure(Call<AdminStatistics> call, Throwable t) {
+                if (!isAdded()) return;
                 swipeRefresh.setRefreshing(false);
-                showStatus("Network error. Pull down to retry.");
+                String error = ApiErrorUtils.getNetworkErrorMessage(t);
+                showStatus(error);
             }
         });
     }

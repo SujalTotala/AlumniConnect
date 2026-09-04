@@ -98,6 +98,69 @@
 
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Profile Completion Card -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_profile_completion"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="2dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Profile Strength"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tv_completion_percentage"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0%"
+                            android:textColor="@color/primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <com.google.android.material.progressindicator.LinearProgressIndicator
+                        android:id="@+id/progress_profile_completion"
+                        android:layout_width="match_parent"
+                        android:layout_height="8dp"
+                        android:layout_marginTop="8dp"
+                        app:trackCornerRadius="4dp"
+                        app:indicatorColor="@color/primary"
+                        app:trackColor="#E2E8F0"
+                        android:progress="0" />
+
+                    <TextView
+                        android:id="@+id/tv_completion_hint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="Complete all profile fields to connect effectively."
+                        android:textColor="@color/text_muted"
+                        android:textSize="11sp" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
             <!-- Profile Data Card -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
@@ -143,6 +206,21 @@
                 android:textAllCaps="false"
                 android:textSize="15sp"
                 android:textStyle="bold"
+                app:cornerRadius="12dp" />
+
+            <!-- About / Platform Info Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_profile_about"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="8dp"
+                android:backgroundTint="@color/white"
+                android:textColor="@color/text_primary"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp"
+                android:text="About AlumniConnect &amp; Status"
+                android:textAllCaps="false"
+                android:textSize="14sp"
                 app:cornerRadius="12dp" />
 
         </LinearLayout>
