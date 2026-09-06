@@ -76,6 +76,10 @@ public class MainActivity extends AppCompatActivity {
             } else if (id == R.id.action_opportunities) {
                 switchTabFragment(TAG_OPPORTUNITIES);
                 return true;
+            } else if (id == R.id.action_my_network) {
+                Intent intent = new Intent(MainActivity.this, MyNetworkActivity.class);
+                startActivity(intent);
+                return true;
             } else if (id == R.id.action_notifications) {
                 Intent intent = new Intent(MainActivity.this, NotificationsActivity.class);
                 startActivity(intent);

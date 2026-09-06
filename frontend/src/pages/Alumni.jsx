@@ -2,10 +2,13 @@ import { useEffect, useState } from "react";
 import DashboardLayout from "../layouts/DashboardLayout";
 import { alumniApi } from "../api/alumniApi";
 import { bookmarkApi } from "../api/bookmarkApi";
+import { connectionApi } from "../api/connectionApi";
 
 const Alumni = () => {
   const [alumni, setAlumni] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [connectionsMap, setConnectionsMap] = useState({});
+  const [connectingUserId, setConnectingUserId] = useState(null);
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState("");
   const [mentorFilter, setMentorFilter] = useState(false);
@@ -81,9 +84,70 @@ const Alumni = () => {
     }
   };
 
+  const fetchConnections = async () => {
+    if (!currentUser?.id) return;
+    try {
+      const [netRes, sentRes, recRes] = await Promise.all([
+        connectionApi.getMyNetwork(),
+        connectionApi.getSentRequests(),
+        connectionApi.getReceivedRequests(),
+      ]);
+      const map = {};
+      (netRes.data || []).forEach((c) => {
+        const otherId = c.sender_id === currentUser.id ? c.receiver_id : c.sender_id;
+        map[otherId] = { status: "CONNECTED", connection_id: c.id };
+      });
+      (sentRes.data || []).forEach((c) => {
+        map[c.receiver_id] = { status: "PENDING_SENT", connection_id: c.id };
+      });
+      (recRes.data || []).forEach((c) => {
+        map[c.sender_id] = { status: "PENDING_RECEIVED", connection_id: c.id };
+      });
+      setConnectionsMap(map);
+    } catch (err) {
+      console.error("Failed to load connection statuses:", err);
+    }
+  };
+
+  const handleConnect = async (e, targetUserId) => {
+    e.stopPropagation();
+    if (!targetUserId) {
+      setErrorMsg("This alumni member account is not currently linked to an active user profile.");
+      return;
+    }
+    setConnectingUserId(targetUserId);
+    try {
+      const res = await connectionApi.sendRequest(targetUserId);
+      setConnectionsMap((prev) => ({
+        ...prev,
+        [targetUserId]: { status: "PENDING_SENT", connection_id: res.data?.id }
+      }));
+      setSuccessMsg("Connection request sent successfully!");
+    } catch (err) {
+      setErrorMsg(err.response?.data?.detail || "Failed to send connection request.");
+    } finally {
+      setConnectingUserId(null);
+    }
+  };
+
+  const handleAcceptConnect = async (e, connectionId, targetUserId) => {
+    e.stopPropagation();
+    try {
+      await connectionApi.acceptRequest(connectionId);
+      setConnectionsMap((prev) => ({
+        ...prev,
+        [targetUserId]: { status: "CONNECTED", connection_id: connectionId }
+      }));
+      setSuccessMsg("Connection accepted! User added to your network.");
+    } catch (err) {
+      setErrorMsg(err.response?.data?.detail || "Failed to accept connection.");
+    }
+  };
+
   useEffect(() => {
     fetchAlumni();
     fetchBookmarks();
+    fetchConnections();
   }, [deptFilter, mentorFilter, verifiedFilter, gradYearFilter]);
 
   const handleSearchSubmit = (e) => {
@@ -440,20 +504,54 @@ const Alumni = () => {
                     )}
                   </div>
 
-                  <div className="pt-4 mt-4 border-t border-slate-100 flex justify-between items-center">
-                    <button
-                      onClick={() => setSelectedAlumni(item)}
-                      className="text-xs text-blue-700 hover:text-blue-900 font-semibold"
-                    >
-                      View Details →
-                    </button>
-                    {(isAdmin || currentUser?.email === item.email) && (
+                  <div className="pt-4 mt-4 border-t border-slate-100 flex flex-wrap justify-between items-center gap-2">
+                    <div className="flex items-center gap-2">
                       <button
-                        onClick={() => handleDeleteAlumni(item.id)}
-                        className="text-xs text-red-500 hover:text-red-700 font-medium"
+                        onClick={() => setSelectedAlumni(item)}
+                        className="text-xs text-blue-700 hover:text-blue-900 font-semibold"
                       >
-                        Delete
+                        View Details →
                       </button>
+                      {(isAdmin || currentUser?.email === item.email) && (
+                        <button
+                          onClick={() => handleDeleteAlumni(item.id)}
+                          className="text-xs text-red-500 hover:text-red-700 font-medium"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+
+                    {item.user_id && item.user_id !== currentUser?.id && currentUser?.email !== item.email && (
+                      <div className="flex items-center">
+                        {connectionsMap[item.user_id]?.status === "CONNECTED" && (
+                          <span className="bg-emerald-50 text-emerald-700 text-[11px] font-bold px-2.5 py-1 rounded-xl border border-emerald-200">
+                            Connected ✓
+                          </span>
+                        )}
+                        {connectionsMap[item.user_id]?.status === "PENDING_SENT" && (
+                          <span className="bg-amber-50 text-amber-700 text-[11px] font-bold px-2.5 py-1 rounded-xl border border-amber-200">
+                            Pending ⏳
+                          </span>
+                        )}
+                        {connectionsMap[item.user_id]?.status === "PENDING_RECEIVED" && (
+                          <button
+                            onClick={(e) => handleAcceptConnect(e, connectionsMap[item.user_id].connection_id, item.user_id)}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold px-2.5 py-1 rounded-xl shadow-xs"
+                          >
+                            Accept
+                          </button>
+                        )}
+                        {!connectionsMap[item.user_id] && (
+                          <button
+                            disabled={connectingUserId === item.user_id}
+                            onClick={(e) => handleConnect(e, item.user_id)}
+                            className="bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold px-2.5 py-1 rounded-xl shadow-xs transition"
+                          >
+                            {connectingUserId === item.user_id ? "..." : "+ Connect"}
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -537,26 +635,60 @@ const Alumni = () => {
                   </div>
                 )}
 
-                <div className="flex gap-4 pt-4 border-t border-slate-100">
-                  {selectedAlumni.linkedin_url && (
-                    <a
-                      href={selectedAlumni.linkedin_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-xs text-blue-700 font-semibold hover:underline"
-                    >
-                      🔗 LinkedIn Profile
-                    </a>
-                  )}
-                  {selectedAlumni.github_url && (
-                    <a
-                      href={selectedAlumni.github_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-xs text-slate-800 font-semibold hover:underline"
-                    >
-                      🐙 GitHub Profile
-                    </a>
+                <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-100">
+                  <div className="flex gap-4">
+                    {selectedAlumni.linkedin_url && (
+                      <a
+                        href={selectedAlumni.linkedin_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-blue-700 font-semibold hover:underline"
+                      >
+                        🔗 LinkedIn Profile
+                      </a>
+                    )}
+                    {selectedAlumni.github_url && (
+                      <a
+                        href={selectedAlumni.github_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-slate-800 font-semibold hover:underline"
+                      >
+                        🐙 GitHub Profile
+                      </a>
+                    )}
+                  </div>
+
+                  {selectedAlumni.user_id && selectedAlumni.user_id !== currentUser?.id && currentUser?.email !== selectedAlumni.email && (
+                    <div>
+                      {connectionsMap[selectedAlumni.user_id]?.status === "CONNECTED" && (
+                        <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-3 py-1.5 rounded-xl border border-emerald-200">
+                          Connected ✓
+                        </span>
+                      )}
+                      {connectionsMap[selectedAlumni.user_id]?.status === "PENDING_SENT" && (
+                        <span className="bg-amber-50 text-amber-700 text-xs font-bold px-3 py-1.5 rounded-xl border border-amber-200">
+                          Request Sent ⏳
+                        </span>
+                      )}
+                      {connectionsMap[selectedAlumni.user_id]?.status === "PENDING_RECEIVED" && (
+                        <button
+                          onClick={(e) => handleAcceptConnect(e, connectionsMap[selectedAlumni.user_id].connection_id, selectedAlumni.user_id)}
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl shadow-sm"
+                        >
+                          Accept Request
+                        </button>
+                      )}
+                      {!connectionsMap[selectedAlumni.user_id] && (
+                        <button
+                          disabled={connectingUserId === selectedAlumni.user_id}
+                          onClick={(e) => handleConnect(e, selectedAlumni.user_id)}
+                          className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl shadow-sm transition"
+                        >
+                          {connectingUserId === selectedAlumni.user_id ? "Connecting..." : "+ Connect"}
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

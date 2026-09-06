@@ -11,6 +11,7 @@ import Opportunities from "./pages/Opportunities";
 import Notifications from "./pages/Notifications";
 import SavedItems from "./pages/SavedItems";
 import AdminDashboard from "./pages/AdminDashboard";
+import MyNetwork from "./pages/MyNetwork";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -90,6 +91,24 @@ function App() {
         element={
           <ProtectedRoute>
             <SavedItems />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/network"
+        element={
+          <ProtectedRoute>
+            <MyNetwork />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/my-network"
+        element={
+          <ProtectedRoute>
+            <MyNetwork />
           </ProtectedRoute>
         }
       />

@@ -8,6 +8,7 @@ import { adminApi } from "../api/adminApi";
 import { announcementApi } from "../api/announcementApi";
 import { profileApi } from "../api/profileApi";
 import { activityApi } from "../api/activityApi";
+import { connectionApi } from "../api/connectionApi";
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
@@ -17,6 +18,7 @@ const Dashboard = () => {
     totalOpportunities: 0,
     totalUsers: 0,
   });
+  const [networkStats, setNetworkStats] = useState(null);
   const [recentEvents, setRecentEvents] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [profileCompletion, setProfileCompletion] = useState(null);
@@ -72,16 +74,18 @@ const Dashboard = () => {
           setRecentEvents(eventsList.slice(0, 2));
         }
 
-        // Additional engagement data: announcements, profile completion, activity feed
+        // Additional engagement data: announcements, profile completion, activity feed, networking
         try {
-          const [annRes, compRes, actRes] = await Promise.all([
+          const [annRes, compRes, actRes, netRes] = await Promise.all([
             announcementApi.getAnnouncements(true),
             profileApi.getCompletionSuggestions(),
             activityApi.getActivityFeed(5),
+            connectionApi.getNetworkSummary(),
           ]);
           setAnnouncements(annRes.data || []);
           setProfileCompletion(compRes.data || null);
           setRecentActivities(actRes.data || []);
+          setNetworkStats(netRes.data || null);
         } catch (subErr) {
           console.log("Secondary dashboard widgets load note:", subErr);
         }
@@ -235,7 +239,41 @@ const Dashboard = () => {
         </div>
 
         {/* Feature Hub Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* My Network & Referrals Tile */}
+          <Link
+            to="/network"
+            className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-lg hover:border-indigo-300 transition group flex flex-col justify-between"
+          >
+            <div>
+              <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition transform">
+                🌐
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 group-hover:text-indigo-700 transition">
+                My Network
+              </h3>
+              <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
+                Build your professional network, manage connection invites, and exchange job referrals.
+              </p>
+              {networkStats && (
+                <div className="mt-3 flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-lg border border-indigo-100">
+                    {networkStats.total_connections} Connections
+                  </span>
+                  {networkStats.pending_requests_received > 0 && (
+                    <span className="text-[11px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-lg animate-pulse">
+                      {networkStats.pending_requests_received} New
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="mt-6 flex items-center text-xs font-semibold text-indigo-700 gap-1">
+              <span>Open Network</span>
+              <span>→</span>
+            </div>
+          </Link>
+
           {/* Alumni Directory Tile */}
           <Link
             to="/alumni"
@@ -290,7 +328,7 @@ const Dashboard = () => {
                 💼
               </div>
               <h3 className="text-lg font-bold text-slate-900 group-hover:text-amber-700 transition">
-                Career Opportunities
+                Opportunities
               </h3>
               <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
                 Discover job openings, summer internships, referral programs, and scholarships shared by alumni.

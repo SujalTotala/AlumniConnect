@@ -1,5 +1,6 @@
 package com.alumniconnect.app.fragments;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -12,6 +13,7 @@ import androidx.fragment.app.Fragment;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.alumniconnect.app.R;
 import com.alumniconnect.app.activities.MainActivity;
+import com.alumniconnect.app.activities.MyNetworkActivity;
 import com.alumniconnect.app.models.AdminStatistics;
 import com.alumniconnect.app.models.Event;
 import com.alumniconnect.app.models.ProfileResponse;
@@ -39,7 +41,7 @@ public class HomeFragment extends Fragment {
     private LinearLayout layoutAdminStats, layoutQuickActions;
     private TextView tvTotalUsers, tvTotalAlumni, tvTotalEvents, tvActiveMentors,
             tvTotalOpportunities, tvPendingMentorship;
-    private View cardAlumni, cardMentorship, cardEvents, cardProfile, cardOpportunities;
+    private View cardAlumni, cardMentorship, cardEvents, cardProfile, cardOpportunities, cardMyNetwork;
 
     @Nullable
     @Override
@@ -79,6 +81,7 @@ public class HomeFragment extends Fragment {
         cardEvents = view.findViewById(R.id.card_events);
         cardProfile = view.findViewById(R.id.card_profile);
         cardOpportunities = view.findViewById(R.id.card_opportunities);
+        cardMyNetwork = view.findViewById(R.id.card_my_network);
 
         // Populate session-based user info
         populateUserInfo();
@@ -90,6 +93,12 @@ public class HomeFragment extends Fragment {
         cardProfile.setOnClickListener(v -> navigateToTab(R.id.nav_profile));
         if (cardOpportunities != null) {
             cardOpportunities.setOnClickListener(v -> loadOpportunitiesFragment());
+        }
+        if (cardMyNetwork != null) {
+            cardMyNetwork.setOnClickListener(v -> {
+                Intent intent = new Intent(requireContext(), MyNetworkActivity.class);
+                startActivity(intent);
+            });
         }
 
         View cardAdminOpportunities = view.findViewById(R.id.card_admin_opportunities);

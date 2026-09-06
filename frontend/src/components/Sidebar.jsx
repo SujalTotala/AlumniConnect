@@ -20,6 +20,7 @@ const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
 
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: "📊" },
+    { path: "/network", label: "My Network", icon: "🌐" },
     { path: "/alumni", label: "Alumni Directory", icon: "👥" },
     { path: "/events", label: "Events", icon: "📅" },
     { path: "/mentorship", label: "Mentorship", icon: "🎓" },

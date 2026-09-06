@@ -12,6 +12,8 @@ from app.models.event_model import Event, EventRegistration
 from app.models.mentorship_model import MentorshipRequest
 from app.models.opportunity_model import Opportunity
 from app.models.notification_model import Notification
+from app.models.connection_model import Connection
+from app.models.referral_model import ReferralRequest
 
 # Import all routers
 from app.routes.auth_routes import router as auth_router
@@ -26,6 +28,8 @@ from app.routes.bookmark_routes import router as bookmark_router
 from app.routes.announcement_routes import router as announcement_router
 from app.routes.activity_routes import router as activity_router
 from app.routes.preference_routes import router as preference_router
+from app.routes.connection_routes import router as connection_router
+from app.routes.referral_routes import router as referral_router
 
 # Keep local development convenient, but production schema changes must be
 # applied explicitly through Alembic before the application starts.
@@ -101,3 +105,5 @@ app.include_router(bookmark_router, prefix="/bookmarks", tags=["Bookmarks"])
 app.include_router(announcement_router, prefix="/announcements", tags=["Announcements"])
 app.include_router(activity_router, prefix="/activity-feed", tags=["Activity Feed"])
 app.include_router(preference_router, prefix="/notification-preferences", tags=["Notification Preferences"])
+app.include_router(connection_router, prefix="/connections", tags=["Connections & Networking"])
+app.include_router(referral_router, prefix="/referrals", tags=["Referrals"])

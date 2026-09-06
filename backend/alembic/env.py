@@ -23,6 +23,8 @@ from app.models.notification_model import Notification
 from app.models.bookmark_model import UserBookmark
 from app.models.announcement_model import Announcement
 from app.models.preference_model import NotificationPreference
+from app.models.connection_model import Connection
+from app.models.referral_model import ReferralRequest
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

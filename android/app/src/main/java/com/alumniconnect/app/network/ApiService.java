@@ -26,6 +26,13 @@ import com.alumniconnect.app.models.ProfileUpdateRequest;
 import com.alumniconnect.app.models.RegisterRequest;
 import com.alumniconnect.app.models.UnreadCountResponse;
 import com.alumniconnect.app.models.User;
+import com.alumniconnect.app.models.Connection;
+import com.alumniconnect.app.models.ConnectionStatusResponse;
+import com.alumniconnect.app.models.ConnectionSuggestion;
+import com.alumniconnect.app.models.NetworkSummary;
+import com.alumniconnect.app.models.ReferralRequest;
+import com.alumniconnect.app.models.ReferralRequestCreate;
+import com.alumniconnect.app.models.EligibleAlumni;
 import java.util.List;
 import java.util.Map;
 import retrofit2.Call;
@@ -209,4 +216,60 @@ public interface ApiService {
     // ── Admin ────────────────────────────────────────────────────
     @GET("admin/statistics")
     Call<AdminStatistics> getAdminStatistics();
+
+    // ── Connections & Networking ─────────────────────────────────
+    @POST("connections/request/{userId}")
+    Call<Connection> sendConnectionRequest(@Path("userId") int userId);
+
+    @GET("connections/received")
+    Call<List<Connection>> getReceivedConnections();
+
+    @GET("connections/sent")
+    Call<List<Connection>> getSentConnections();
+
+    @GET("connections/my-network")
+    Call<List<Connection>> getMyNetwork();
+
+    @PUT("connections/{connectionId}/accept")
+    Call<Connection> acceptConnection(@Path("connectionId") int connectionId);
+
+    @PUT("connections/{connectionId}/reject")
+    Call<Connection> rejectConnection(@Path("connectionId") int connectionId);
+
+    @DELETE("connections/{connectionId}")
+    Call<Map<String, Object>> removeConnection(@Path("connectionId") int connectionId);
+
+    @GET("connections/status/{userId}")
+    Call<ConnectionStatusResponse> getConnectionStatus(@Path("userId") int userId);
+
+    @GET("connections/suggestions")
+    Call<List<ConnectionSuggestion>> getConnectionSuggestions(@Query("limit") Integer limit);
+
+    @GET("connections/network-summary")
+    Call<NetworkSummary> getNetworkSummary();
+
+    // ── Referrals ────────────────────────────────────────────────
+    @POST("referrals/")
+    Call<ReferralRequest> createReferralRequest(@Body ReferralRequestCreate request);
+
+    @GET("referrals/sent")
+    Call<List<ReferralRequest>> getSentReferrals();
+
+    @GET("referrals/received")
+    Call<List<ReferralRequest>> getReceivedReferrals();
+
+    @GET("referrals/eligible-alumni/{opportunityId}")
+    Call<List<EligibleAlumni>> getEligibleAlumniForOpportunity(@Path("opportunityId") int opportunityId);
+
+    @PUT("referrals/{referralId}/accept")
+    Call<ReferralRequest> acceptReferral(@Path("referralId") int referralId);
+
+    @PUT("referrals/{referralId}/decline")
+    Call<ReferralRequest> declineReferral(@Path("referralId") int referralId);
+
+    @PUT("referrals/{referralId}/complete")
+    Call<ReferralRequest> completeReferral(@Path("referralId") int referralId);
+
+    @DELETE("referrals/{referralId}")
+    Call<Map<String, Object>> cancelReferral(@Path("referralId") int referralId);
 }

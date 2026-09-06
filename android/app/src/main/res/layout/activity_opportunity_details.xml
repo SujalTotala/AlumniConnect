@@ -210,6 +210,20 @@
                         app:cornerRadius="12dp"
                         android:visibility="gone" />
 
+                    <!-- Request Referral -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_opp_request_referral"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="8dp"
+                        android:backgroundTint="@color/accent"
+                        android:text="🤝 Request Referral from Alumni"
+                        android:textAllCaps="false"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        app:cornerRadius="12dp"
+                        android:visibility="visible" />
+
                     <!-- Delete Opportunity (Visible for Admin / Creator owner) -->
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btn_opp_delete"

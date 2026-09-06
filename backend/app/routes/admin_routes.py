@@ -12,6 +12,8 @@ from app.models.event_model import Event, EventRegistration
 from app.models.mentorship_model import MentorshipRequest
 from app.models.opportunity_model import Opportunity
 from app.models.announcement_model import Announcement
+from app.models.connection_model import Connection
+from app.models.referral_model import ReferralRequest
 from app.schemas.admin_schema import (
     AdminStatisticsResponse,
     UserStatusUpdate,
@@ -74,6 +76,13 @@ def get_admin_statistics(
     )
     alumni_by_company = {row[0]: row[1] for row in comp_rows if row[0]}
 
+    # Networking & Referral aggregate stats (admin visibility, no private messages)
+    total_connections = db.query(Connection).count()
+    accepted_connections = db.query(Connection).filter(Connection.status == "ACCEPTED").count()
+    pending_conn_requests = db.query(Connection).filter(Connection.status == "PENDING").count()
+    total_referrals = db.query(ReferralRequest).count()
+    accepted_referrals = db.query(ReferralRequest).filter(ReferralRequest.status == "ACCEPTED").count()
+
     return {
         "total_users": total_users,
         "total_alumni": total_alumni,
@@ -88,6 +97,11 @@ def get_admin_statistics(
         "alumni_by_department": alumni_by_dept,
         "alumni_by_graduation_year": alumni_by_year,
         "alumni_by_company": alumni_by_company,
+        "total_connections": total_connections,
+        "accepted_connections": accepted_connections,
+        "pending_connection_requests": pending_conn_requests,
+        "total_referral_requests": total_referrals,
+        "accepted_referral_requests": accepted_referrals,
     }
 
 # Alumni Verification Toggle (Admin only)

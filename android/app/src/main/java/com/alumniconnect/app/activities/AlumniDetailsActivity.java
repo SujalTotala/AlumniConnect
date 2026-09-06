@@ -17,7 +17,10 @@ import com.alumniconnect.app.R;
 import com.alumniconnect.app.models.Alumni;
 import com.alumniconnect.app.models.MentorshipRequest;
 import com.alumniconnect.app.models.MentorshipRequestCreate;
+import com.alumniconnect.app.models.Connection;
+import com.alumniconnect.app.models.ConnectionStatusResponse;
 import com.alumniconnect.app.repositories.AlumniRepository;
+import com.alumniconnect.app.repositories.ConnectionRepository;
 import com.alumniconnect.app.repositories.MentorshipRepository;
 import com.alumniconnect.app.utils.ApiErrorUtils;
 import com.alumniconnect.app.utils.SessionManager;
@@ -30,6 +33,7 @@ public class AlumniDetailsActivity extends AppCompatActivity {
 
     private AlumniRepository alumniRepository;
     private MentorshipRepository mentorshipRepository;
+    private ConnectionRepository connectionRepository;
     private SessionManager sessionManager;
 
     // State Layouts
@@ -47,7 +51,7 @@ public class AlumniDetailsActivity extends AppCompatActivity {
     private TextView tvDetailEmail, tvDetailDept, tvDetailYear, tvDetailCompany;
     private TextView tvDetailJobRole, tvDetailLocation, tvDetailSkills, tvDetailBio;
     // Buttons
-    private MaterialButton btnLinkedin, btnGithub, btnRequestMentorship;
+    private MaterialButton btnLinkedin, btnGithub, btnRequestMentorship, btnConnectAlumni;
 
     private int alumniId;
     private boolean isSendingRequest = false;
@@ -59,6 +63,7 @@ public class AlumniDetailsActivity extends AppCompatActivity {
 
         alumniRepository = new AlumniRepository(this);
         mentorshipRepository = new MentorshipRepository(this);
+        connectionRepository = new ConnectionRepository(this);
         sessionManager = new SessionManager(this);
 
         if (getSupportActionBar() != null) {
@@ -97,6 +102,7 @@ public class AlumniDetailsActivity extends AppCompatActivity {
         btnLinkedin = findViewById(R.id.btn_linkedin);
         btnGithub = findViewById(R.id.btn_github);
         btnRequestMentorship = findViewById(R.id.btn_request_mentorship);
+        btnConnectAlumni = findViewById(R.id.btn_connect_alumni);
 
         alumniId = getIntent().getIntExtra("alumni_id", -1);
         String name = getIntent().getStringExtra("alumni_name");
@@ -217,6 +223,113 @@ public class AlumniDetailsActivity extends AppCompatActivity {
         } else {
             btnRequestMentorship.setVisibility(View.GONE);
         }
+
+        setupConnectionButton(alumni);
+    }
+
+    private void setupConnectionButton(Alumni alumni) {
+        if (alumni.getUserId() == null || alumni.getUserId() == sessionManager.getUserId()) {
+            btnConnectAlumni.setVisibility(View.GONE);
+            return;
+        }
+
+        btnConnectAlumni.setVisibility(View.VISIBLE);
+        btnConnectAlumni.setEnabled(false);
+        btnConnectAlumni.setText("Loading...");
+
+        connectionRepository.getConnectionStatus(alumni.getUserId()).enqueue(new Callback<ConnectionStatusResponse>() {
+            @Override
+            public void onResponse(Call<ConnectionStatusResponse> call, Response<ConnectionStatusResponse> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    ConnectionStatusResponse status = response.body();
+                    updateConnectionButtonUI(alumni.getUserId(), status);
+                } else {
+                    btnConnectAlumni.setText("+ Connect");
+                    btnConnectAlumni.setEnabled(true);
+                    btnConnectAlumni.setOnClickListener(v -> sendConnectionRequest(alumni.getUserId()));
+                }
+            }
+
+            @Override
+            public void onFailure(Call<ConnectionStatusResponse> call, Throwable t) {
+                btnConnectAlumni.setText("+ Connect");
+                btnConnectAlumni.setEnabled(true);
+                btnConnectAlumni.setOnClickListener(v -> sendConnectionRequest(alumni.getUserId()));
+            }
+        });
+    }
+
+    private void updateConnectionButtonUI(int targetUserId, ConnectionStatusResponse status) {
+        if (status.isConnected()) {
+            btnConnectAlumni.setText("✓ Connected");
+            btnConnectAlumni.setEnabled(false);
+            btnConnectAlumni.setBackgroundTintList(getColorStateList(R.color.success));
+        } else if (status.isPendingReceived()) {
+            if (status.getConnectionId() != null) {
+                btnConnectAlumni.setText("✓ Accept Request");
+                btnConnectAlumni.setEnabled(true);
+                btnConnectAlumni.setBackgroundTintList(getColorStateList(R.color.primary));
+                btnConnectAlumni.setOnClickListener(v -> acceptConnection(status.getConnectionId(), targetUserId));
+            } else {
+                btnConnectAlumni.setText("✓ Accept Request");
+                btnConnectAlumni.setEnabled(false);
+            }
+        } else if (status.isPendingSent()) {
+            btnConnectAlumni.setText("⏳ Request Sent");
+            btnConnectAlumni.setEnabled(false);
+            btnConnectAlumni.setBackgroundTintList(getColorStateList(R.color.text_muted));
+        } else {
+            btnConnectAlumni.setText("+ Connect");
+            btnConnectAlumni.setEnabled(true);
+            btnConnectAlumni.setBackgroundTintList(getColorStateList(R.color.primary));
+            btnConnectAlumni.setOnClickListener(v -> sendConnectionRequest(targetUserId));
+        }
+    }
+
+    private void sendConnectionRequest(int targetUserId) {
+        btnConnectAlumni.setEnabled(false);
+        connectionRepository.sendConnectionRequest(targetUserId).enqueue(new Callback<Connection>() {
+            @Override
+            public void onResponse(Call<Connection> call, Response<Connection> response) {
+                if (response.isSuccessful()) {
+                    Toast.makeText(AlumniDetailsActivity.this, "Connection request sent!", Toast.LENGTH_SHORT).show();
+                    btnConnectAlumni.setText("⏳ Request Sent");
+                    btnConnectAlumni.setBackgroundTintList(getColorStateList(R.color.text_muted));
+                } else {
+                    btnConnectAlumni.setEnabled(true);
+                    Toast.makeText(AlumniDetailsActivity.this, ApiErrorUtils.parseError(response), Toast.LENGTH_LONG).show();
+                }
+            }
+
+            @Override
+            public void onFailure(Call<Connection> call, Throwable t) {
+                btnConnectAlumni.setEnabled(true);
+                Toast.makeText(AlumniDetailsActivity.this, ApiErrorUtils.parseThrowable(t), Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private void acceptConnection(int connectionId, int targetUserId) {
+        btnConnectAlumni.setEnabled(false);
+        connectionRepository.acceptConnection(connectionId).enqueue(new Callback<Connection>() {
+            @Override
+            public void onResponse(Call<Connection> call, Response<Connection> response) {
+                if (response.isSuccessful()) {
+                    Toast.makeText(AlumniDetailsActivity.this, "Connection accepted!", Toast.LENGTH_SHORT).show();
+                    btnConnectAlumni.setText("✓ Connected");
+                    btnConnectAlumni.setBackgroundTintList(getColorStateList(R.color.success));
+                } else {
+                    btnConnectAlumni.setEnabled(true);
+                    Toast.makeText(AlumniDetailsActivity.this, ApiErrorUtils.parseError(response), Toast.LENGTH_LONG).show();
+                }
+            }
+
+            @Override
+            public void onFailure(Call<Connection> call, Throwable t) {
+                btnConnectAlumni.setEnabled(true);
+                Toast.makeText(AlumniDetailsActivity.this, ApiErrorUtils.parseThrowable(t), Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     private void showSendRequestDialog(Alumni mentor) {

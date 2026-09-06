@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import DashboardLayout from "../layouts/DashboardLayout";
 import { opportunityApi } from "../api/opportunityApi";
 import { bookmarkApi } from "../api/bookmarkApi";
+import { referralApi } from "../api/referralApi";
+import { Link } from "react-router-dom";
 
 const CATEGORIES = [
   "All",
@@ -22,6 +24,16 @@ const Opportunities = () => {
   const [savedOppIds, setSavedOppIds] = useState(new Set());
   const [showPostModal, setShowPostModal] = useState(false);
   const [selectedOpp, setSelectedOpp] = useState(null);
+  
+  // Referral Request Modal States
+  const [showReferralModal, setShowReferralModal] = useState(false);
+  const [referralOpp, setReferralOpp] = useState(null);
+  const [eligibleAlumni, setEligibleAlumni] = useState([]);
+  const [loadingEligible, setLoadingEligible] = useState(false);
+  const [selectedAlumniId, setSelectedAlumniId] = useState("");
+  const [referralMessage, setReferralMessage] = useState("");
+  const [submittingReferral, setSubmittingReferral] = useState(false);
+
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
@@ -146,6 +158,49 @@ const Opportunities = () => {
     } catch (err) {
       const detail = err.response?.data?.detail || "Failed to delete opportunity.";
       setErrorMsg(detail);
+    }
+  };
+
+  const handleOpenReferralModal = async (e, opp) => {
+    e.stopPropagation();
+    setReferralOpp(opp);
+    setSelectedAlumniId("");
+    setReferralMessage("");
+    setShowReferralModal(true);
+    setLoadingEligible(true);
+    try {
+      const res = await referralApi.getEligibleAlumni(opp.id);
+      setEligibleAlumni(res.data || []);
+      if (res.data && res.data.length > 0) {
+        setSelectedAlumniId(res.data[0].user_id);
+      }
+    } catch (err) {
+      console.error("Failed to load eligible alumni for referral:", err);
+      setErrorMsg("Failed to load eligible connected alumni.");
+    } finally {
+      setLoadingEligible(false);
+    }
+  };
+
+  const handleSubmitReferral = async (e) => {
+    e.preventDefault();
+    if (!selectedAlumniId) {
+      setErrorMsg("Please select a connected alumni to request a referral from.");
+      return;
+    }
+    setSubmittingReferral(true);
+    try {
+      await referralApi.createReferral({
+        opportunity_id: referralOpp.id,
+        alumni_id: parseInt(selectedAlumniId),
+        message: referralMessage.trim() || undefined,
+      });
+      setSuccessMsg(`Referral request submitted successfully for ${referralOpp.title}!`);
+      setShowReferralModal(false);
+    } catch (err) {
+      setErrorMsg(err.response?.data?.detail || "Failed to submit referral request.");
+    } finally {
+      setSubmittingReferral(false);
     }
   };
 
@@ -308,25 +363,34 @@ const Opportunities = () => {
                     </div>
                   </div>
 
-                  <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
-                    <div className="flex gap-2">
+                  <div className="pt-4 border-t border-slate-100 flex flex-wrap justify-between items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       {opp.application_url ? (
                         <a
                           href={opp.application_url}
                           target="_blank"
                           rel="noreferrer"
-                          className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition"
+                          className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition"
                         >
-                          Apply Now ↗
+                          Apply ↗
                         </a>
                       ) : (
                         <button
                           onClick={() => setSelectedOpp(opp)}
-                          className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2 rounded-xl text-xs font-semibold"
+                          className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-1.5 rounded-xl text-xs font-semibold"
                         >
-                          View Details
+                          Details
                         </button>
                       )}
+
+                      <button
+                        onClick={(e) => handleOpenReferralModal(e, opp)}
+                        className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1"
+                        title="Request referral from connected alumni"
+                      >
+                        <span>🤝</span>
+                        <span>Referral</span>
+                      </button>
                     </div>
 
                     {(role === "admin" || currentUser?.id === opp.posted_by) && (
@@ -378,7 +442,18 @@ const Opportunities = () => {
                 </div>
               </div>
 
-              <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
+              <div className="mt-6 pt-4 border-t border-slate-100 flex flex-wrap justify-between items-center gap-3">
+                <button
+                  onClick={(e) => {
+                    const opp = selectedOpp;
+                    setSelectedOpp(null);
+                    handleOpenReferralModal(e, opp);
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5"
+                >
+                  <span>🤝</span>
+                  <span>Request Referral from Alumni</span>
+                </button>
                 <button
                   onClick={() => setSelectedOpp(null)}
                   className="px-5 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-semibold"
@@ -516,6 +591,113 @@ const Opportunities = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Referral Request Modal */}
+        {showReferralModal && referralOpp && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto">
+              <button
+                onClick={() => setShowReferralModal(false)}
+                className="absolute right-5 top-5 text-slate-400 hover:text-slate-700 text-xl font-bold"
+              >
+                ✕
+              </button>
+
+              <div className="mb-4">
+                <span className="bg-emerald-50 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-200">
+                  Opportunity Referral
+                </span>
+                <h3 className="text-xl font-extrabold text-slate-900 mt-2">Request Referral</h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  for <strong className="text-slate-800">{referralOpp.title}</strong> at <strong className="text-blue-600">{referralOpp.company}</strong>
+                </p>
+              </div>
+
+              {loadingEligible ? (
+                <div className="py-8 text-center text-slate-500 text-sm font-semibold">
+                  <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-emerald-600 border-t-transparent mb-2"></div>
+                  <p>Finding connected alumni...</p>
+                </div>
+              ) : eligibleAlumni.length === 0 ? (
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 text-center space-y-3">
+                  <span className="text-3xl">👥</span>
+                  <h4 className="text-sm font-bold text-slate-800">No Connected Alumni Yet</h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    Referral requests can only be sent to alumni you are connected with. Visit the directory or My Network to connect with alumni first!
+                  </p>
+                  <div className="pt-2 flex justify-center gap-3">
+                    <Link
+                      to="/alumni"
+                      onClick={() => setShowReferralModal(false)}
+                      className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2 rounded-xl transition shadow-sm"
+                    >
+                      Browse Alumni →
+                    </Link>
+                    <Link
+                      to="/network"
+                      onClick={() => setShowReferralModal(false)}
+                      className="bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold px-4 py-2 rounded-xl transition"
+                    >
+                      My Network
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handleSubmitReferral} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Select Connected Alumnus *
+                    </label>
+                    <select
+                      value={selectedAlumniId}
+                      onChange={(e) => setSelectedAlumniId(e.target.value)}
+                      required
+                      className="w-full border border-slate-300 bg-slate-50 p-2.5 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    >
+                      {eligibleAlumni.map((a) => (
+                        <option key={a.user_id} value={a.user_id}>
+                          {a.name} ({a.company || a.department || "Alumnus"}) {a.is_company_match ? "⭐ Company Match" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Short Note / Message (Optional)
+                    </label>
+                    <textarea
+                      rows={3}
+                      maxLength={1000}
+                      value={referralMessage}
+                      onChange={(e) => setReferralMessage(e.target.value)}
+                      placeholder="Share a brief note explaining why you're a great fit for this opening..."
+                      className="w-full border border-slate-300 p-2.5 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                    <span className="text-[10px] text-slate-400 block text-right">{referralMessage.length}/1000</span>
+                  </div>
+
+                  <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setShowReferralModal(false)}
+                      className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submittingReferral}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-5 py-2 rounded-xl shadow-md transition"
+                    >
+                      {submittingReferral ? "Submitting..." : "Send Referral Request 🚀"}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         )}

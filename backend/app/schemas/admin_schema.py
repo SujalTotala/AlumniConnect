@@ -16,6 +16,11 @@ class AdminStatisticsResponse(BaseModel):
     alumni_by_department: Optional[dict] = None
     alumni_by_graduation_year: Optional[dict] = None
     alumni_by_company: Optional[dict] = None
+    total_connections: Optional[int] = 0
+    accepted_connections: Optional[int] = 0
+    pending_connection_requests: Optional[int] = 0
+    total_referral_requests: Optional[int] = 0
+    accepted_referral_requests: Optional[int] = 0
 
 class UserStatusUpdate(BaseModel):
     is_active: bool

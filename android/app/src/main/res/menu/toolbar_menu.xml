@@ -7,6 +7,11 @@
         android:title="Notifications"
         app:showAsAction="always" />
     <item
+        android:id="@+id/action_my_network"
+        android:icon="@android:drawable/ic_menu_share"
+        android:title="My Network"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/action_opportunities"
         android:icon="@android:drawable/ic_menu_today"
         android:title="Opportunities"

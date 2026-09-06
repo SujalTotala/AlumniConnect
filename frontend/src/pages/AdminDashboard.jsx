@@ -266,9 +266,15 @@ const AdminDashboard = () => {
           </div>
 
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <span className="text-[11px] font-bold text-slate-500 uppercase">Pending Requests</span>
-            <p className="text-3xl font-black text-rose-700 mt-1">{loadingStats ? "..." : stats?.pending_mentorship_requests}</p>
-            <span className="text-[10px] text-rose-500">Mentorship backlog</span>
+            <span className="text-[11px] font-bold text-slate-500 uppercase">Total Connections</span>
+            <p className="text-3xl font-black text-cyan-700 mt-1">{loadingStats ? "..." : stats?.total_connections ?? 0}</p>
+            <span className="text-[10px] text-cyan-600">{stats?.accepted_connections ?? 0} active ({stats?.pending_connection_requests ?? 0} pending)</span>
+          </div>
+
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <span className="text-[11px] font-bold text-slate-500 uppercase">Referral Requests</span>
+            <p className="text-3xl font-black text-teal-700 mt-1">{loadingStats ? "..." : stats?.total_referral_requests ?? 0}</p>
+            <span className="text-[10px] text-teal-600">{stats?.accepted_referral_requests ?? 0} accepted by alumni</span>
           </div>
         </div>
 
