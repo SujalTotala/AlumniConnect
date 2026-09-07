@@ -48,6 +48,7 @@ public class EventDetailsActivity extends AppCompatActivity {
     private LinearLayout rowEdTime, rowEdLocation, rowEdDescription;
     // Buttons
     private MaterialButton btnRegister, btnCancelRegistration, btnJoinOnline, btnAddToCalendar, btnViewRegistrations;
+    private MaterialButton btnEventAttendance, btnEventCheckin;
     private ProgressBar progressRegistration;
     private TextView tvStatusMsg;
 
@@ -92,6 +93,8 @@ public class EventDetailsActivity extends AppCompatActivity {
         btnJoinOnline = findViewById(R.id.btn_join_online);
         btnAddToCalendar = findViewById(R.id.btn_add_to_calendar);
         btnViewRegistrations = findViewById(R.id.btn_view_registrations);
+        btnEventAttendance = findViewById(R.id.btn_event_attendance);
+        btnEventCheckin = findViewById(R.id.btn_event_checkin);
         progressRegistration = findViewById(R.id.progress_registration);
         tvStatusMsg = findViewById(R.id.tv_registration_status_msg);
 
@@ -114,6 +117,17 @@ public class EventDetailsActivity extends AppCompatActivity {
         btnJoinOnline.setOnClickListener(v -> joinOnline());
         btnAddToCalendar.setOnClickListener(v -> addToCalendar());
         btnViewRegistrations.setOnClickListener(v -> viewRegistrations());
+        btnEventAttendance.setOnClickListener(v -> {
+            Intent intent = new Intent(this, EventAttendanceActivity.class);
+            intent.putExtra("event_id", eventId);
+            intent.putExtra("event_title", currentEvent != null ? currentEvent.getTitle() : "");
+            startActivity(intent);
+        });
+        btnEventCheckin.setOnClickListener(v -> {
+            Intent intent = new Intent(this, QRScannerActivity.class);
+            intent.putExtra("event_id", eventId);
+            startActivity(intent);
+        });
         btnRetry.setOnClickListener(v -> fetchEventDetails());
 
         fetchEventDetails();
@@ -233,13 +247,15 @@ public class EventDetailsActivity extends AppCompatActivity {
             btnJoinOnline.setVisibility(View.GONE);
         }
 
-        // View Registrations (Admin or Creator)
+        // View Registrations & Attendance (Admin or Creator)
         String userRole = sessionManager.getUserRole().toLowerCase();
         boolean isCreator = event.getCreatedBy() != null && event.getCreatedBy() == sessionManager.getUserId();
         if ("admin".equals(userRole) || isCreator) {
             btnViewRegistrations.setVisibility(View.VISIBLE);
+            btnEventAttendance.setVisibility(View.VISIBLE);
         } else {
             btnViewRegistrations.setVisibility(View.GONE);
+            btnEventAttendance.setVisibility(View.GONE);
         }
     }
 

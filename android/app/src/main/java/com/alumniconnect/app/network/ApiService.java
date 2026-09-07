@@ -26,13 +26,26 @@ import com.alumniconnect.app.models.ProfileUpdateRequest;
 import com.alumniconnect.app.models.RegisterRequest;
 import com.alumniconnect.app.models.UnreadCountResponse;
 import com.alumniconnect.app.models.User;
+import com.alumniconnect.app.models.Achievement;
+import com.alumniconnect.app.models.AchievementCreateRequest;
+import com.alumniconnect.app.models.AttendanceCheckInRequest;
+import com.alumniconnect.app.models.AttendanceStats;
+import com.alumniconnect.app.models.Community;
+import com.alumniconnect.app.models.CommunityCreateRequest;
+import com.alumniconnect.app.models.CommunityMember;
+import com.alumniconnect.app.models.CommunityPost;
+import com.alumniconnect.app.models.CommunityPostCreateRequest;
 import com.alumniconnect.app.models.Connection;
 import com.alumniconnect.app.models.ConnectionStatusResponse;
 import com.alumniconnect.app.models.ConnectionSuggestion;
+import com.alumniconnect.app.models.EligibleAlumni;
+import com.alumniconnect.app.models.EventAttendance;
 import com.alumniconnect.app.models.NetworkSummary;
+import com.alumniconnect.app.models.QRCodeTokenResponse;
 import com.alumniconnect.app.models.ReferralRequest;
 import com.alumniconnect.app.models.ReferralRequestCreate;
-import com.alumniconnect.app.models.EligibleAlumni;
+import com.alumniconnect.app.models.SuccessStory;
+import com.alumniconnect.app.models.SuccessStoryCreateRequest;
 import java.util.List;
 import java.util.Map;
 import retrofit2.Call;
@@ -272,4 +285,86 @@ public interface ApiService {
 
     @DELETE("referrals/{referralId}")
     Call<Map<String, Object>> cancelReferral(@Path("referralId") int referralId);
+
+    // ── Event Attendance & QR (Pass 2B) ──────────────────────────
+    @POST("events/{event_id}/attendance/qr-token")
+    Call<QRCodeTokenResponse> generateEventQrToken(@Path("event_id") int eventId);
+
+    @POST("events/attendance/check-in")
+    Call<EventAttendance> checkInAttendee(@Body AttendanceCheckInRequest request);
+
+    @POST("events/{event_id}/attendance/manual")
+    Call<EventAttendance> manualCheckIn(@Path("event_id") int eventId, @Body Map<String, Object> request);
+
+    @GET("events/{event_id}/attendance")
+    Call<List<EventAttendance>> getEventAttendance(@Path("event_id") int eventId);
+
+    @GET("events/{event_id}/attendance/stats")
+    Call<AttendanceStats> getAttendanceStats(@Path("event_id") int eventId);
+
+    // ── Alumni Success Stories (Pass 2B) ─────────────────────────
+    @GET("success-stories/")
+    Call<List<SuccessStory>> getApprovedSuccessStories();
+
+    @GET("success-stories/mine")
+    Call<List<SuccessStory>> getMySuccessStories();
+
+    @GET("success-stories/{id}")
+    Call<SuccessStory> getSuccessStoryById(@Path("id") int id);
+
+    @POST("success-stories/")
+    Call<SuccessStory> submitSuccessStory(@Body SuccessStoryCreateRequest request);
+
+    @DELETE("success-stories/{id}")
+    Call<Map<String, Object>> deleteSuccessStory(@Path("id") int id);
+
+    // ── Communities & Alumni Chapters (Pass 2B) ──────────────────
+    @GET("communities/")
+    Call<List<Community>> getCommunities(
+            @Query("community_type") String communityType,
+            @Query("search") String search
+    );
+
+    @GET("communities/my")
+    Call<List<Community>> getMyCommunities();
+
+    @GET("communities/{id}")
+    Call<Community> getCommunityById(@Path("id") int id);
+
+    @POST("communities/")
+    Call<Community> createCommunity(@Body CommunityCreateRequest request);
+
+    @POST("communities/{id}/join")
+    Call<Map<String, Object>> joinCommunity(@Path("id") int id);
+
+    @DELETE("communities/{id}/leave")
+    Call<Map<String, Object>> leaveCommunity(@Path("id") int id);
+
+    @GET("communities/{id}/members")
+    Call<List<CommunityMember>> getCommunityMembers(@Path("id") int id);
+
+    @GET("communities/{id}/posts")
+    Call<List<CommunityPost>> getCommunityPosts(@Path("id") int id);
+
+    @POST("communities/{id}/posts")
+    Call<CommunityPost> createCommunityPost(@Path("id") int id, @Body CommunityPostCreateRequest request);
+
+    // ── Achievements & Recognition (Pass 2B) ─────────────────────
+    @GET("achievements/")
+    Call<List<Achievement>> getApprovedAchievements(@Query("category") String category);
+
+    @GET("achievements/mine")
+    Call<List<Achievement>> getMyAchievements();
+
+    @GET("achievements/alumni/{alumni_id}")
+    Call<List<Achievement>> getAlumniAchievements(@Path("alumni_id") int alumniId);
+
+    @GET("achievements/{id}")
+    Call<Achievement> getAchievementById(@Path("id") int id);
+
+    @POST("achievements/")
+    Call<Achievement> submitAchievement(@Body AchievementCreateRequest request);
+
+    @DELETE("achievements/{id}")
+    Call<Map<String, Object>> deleteAchievement(@Path("id") int id);
 }

@@ -196,6 +196,65 @@
 
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Honors & Achievements Card -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@color/card_background">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Honors &amp; Recognitions"
+                            android:textColor="@color/text_primary"
+                            android:textSize="15sp"
+                            android:textStyle="bold" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_add_achievement"
+                            android:layout_width="wrap_content"
+                            android:layout_height="36dp"
+                            android:text="+ Add"
+                            android:textSize="12sp"
+                            style="@style/Widget.MaterialComponents.Button.TextButton" />
+                    </LinearLayout>
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/rv_profile_achievements"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:nestedScrollingEnabled="false"
+                        android:layout_marginTop="8dp" />
+
+                    <TextView
+                        android:id="@+id/tv_empty_achievements"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="No honors or achievements recorded yet."
+                        android:textColor="@color/text_muted"
+                        android:textSize="12sp"
+                        android:visibility="gone" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
             <!-- Edit Profile Button -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_edit_profile"

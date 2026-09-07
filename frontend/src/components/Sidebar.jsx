@@ -21,6 +21,8 @@ const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
   const navItems = [
     { path: "/dashboard", label: "Dashboard", icon: "📊" },
     { path: "/network", label: "My Network", icon: "🌐" },
+    { path: "/communities", label: "Communities", icon: "🏛️" },
+    { path: "/stories", label: "Success Stories", icon: "🌟" },
     { path: "/alumni", label: "Alumni Directory", icon: "👥" },
     { path: "/events", label: "Events", icon: "📅" },
     { path: "/mentorship", label: "Mentorship", icon: "🎓" },
@@ -32,6 +34,7 @@ const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
 
   if (user?.role?.toLowerCase() === "admin") {
     navItems.push({ path: "/admin", label: "Admin Portal", icon: "⚙️" });
+    navItems.push({ path: "/admin/alumni-data", label: "Alumni Data", icon: "🗂️" });
   }
 
   return (

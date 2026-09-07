@@ -42,6 +42,7 @@ public class HomeFragment extends Fragment {
     private TextView tvTotalUsers, tvTotalAlumni, tvTotalEvents, tvActiveMentors,
             tvTotalOpportunities, tvPendingMentorship;
     private View cardAlumni, cardMentorship, cardEvents, cardProfile, cardOpportunities, cardMyNetwork;
+    private View cardCommunities, cardSuccessStories;
 
     @Nullable
     @Override
@@ -82,6 +83,8 @@ public class HomeFragment extends Fragment {
         cardProfile = view.findViewById(R.id.card_profile);
         cardOpportunities = view.findViewById(R.id.card_opportunities);
         cardMyNetwork = view.findViewById(R.id.card_my_network);
+        cardCommunities = view.findViewById(R.id.card_communities);
+        cardSuccessStories = view.findViewById(R.id.card_success_stories);
 
         // Populate session-based user info
         populateUserInfo();
@@ -97,6 +100,18 @@ public class HomeFragment extends Fragment {
         if (cardMyNetwork != null) {
             cardMyNetwork.setOnClickListener(v -> {
                 Intent intent = new Intent(requireContext(), MyNetworkActivity.class);
+                startActivity(intent);
+            });
+        }
+        if (cardCommunities != null) {
+            cardCommunities.setOnClickListener(v -> {
+                Intent intent = new Intent(requireContext(), com.alumniconnect.app.activities.CommunitiesActivity.class);
+                startActivity(intent);
+            });
+        }
+        if (cardSuccessStories != null) {
+            cardSuccessStories.setOnClickListener(v -> {
+                Intent intent = new Intent(requireContext(), com.alumniconnect.app.activities.SuccessStoriesActivity.class);
                 startActivity(intent);
             });
         }

@@ -14,12 +14,17 @@ from app.models.opportunity_model import Opportunity
 from app.models.announcement_model import Announcement
 from app.models.connection_model import Connection
 from app.models.referral_model import ReferralRequest
+from app.models.attendance_model import EventAttendance
+from app.models.story_model import SuccessStory
+from app.models.community_model import Community, CommunityMember
+from app.models.achievement_model import Achievement
 from app.schemas.admin_schema import (
     AdminStatisticsResponse,
     UserStatusUpdate,
     UserAdminResponse
 )
 from app.auth.jwt_dependency import require_role
+from app.services.audit_service import log_admin_action
 
 router = APIRouter()
 
@@ -83,6 +88,32 @@ def get_admin_statistics(
     total_referrals = db.query(ReferralRequest).count()
     accepted_referrals = db.query(ReferralRequest).filter(ReferralRequest.status == "ACCEPTED").count()
 
+    # Pass 2B Engagement & Attendance stats
+    events_registered = total_event_registrations
+    event_attendance_total = db.query(EventAttendance).count()
+    event_attendance_rate = (
+        round(float(event_attendance_total) / float(events_registered) * 100.0, 1)
+        if events_registered > 0
+        else 0.0
+    )
+    success_stories_total = db.query(SuccessStory).count()
+    success_stories_pending = db.query(SuccessStory).filter(SuccessStory.status == "PENDING").count()
+    communities_total = db.query(Community).filter(Community.is_active == True).count()
+    community_memberships = db.query(CommunityMember).count()
+    achievements_total = db.query(Achievement).count()
+    achievements_pending = db.query(Achievement).filter(Achievement.status == "PENDING").count()
+
+    # Cohort Analytics by graduation year
+    cohort_analytics = {}
+    for year, count in alumni_by_year.items():
+        v_count = db.query(Alumni).filter(Alumni.graduation_year == str(year), Alumni.is_verified == True).count()
+        m_count = db.query(Alumni).filter(Alumni.graduation_year == str(year), Alumni.mentorship_available == True).count()
+        cohort_analytics[str(year)] = {
+            "total_alumni": count,
+            "verified_alumni": v_count,
+            "active_mentors": m_count
+        }
+
     return {
         "total_users": total_users,
         "total_alumni": total_alumni,
@@ -102,7 +133,26 @@ def get_admin_statistics(
         "pending_connection_requests": pending_conn_requests,
         "total_referral_requests": total_referrals,
         "accepted_referral_requests": accepted_referrals,
+        "events_registered": events_registered,
+        "event_attendance_total": event_attendance_total,
+        "event_attendance_rate": event_attendance_rate,
+        "success_stories_total": success_stories_total,
+        "success_stories_pending": success_stories_pending,
+        "communities_total": communities_total,
+        "community_memberships": community_memberships,
+        "achievements_total": achievements_total,
+        "achievements_pending": achievements_pending,
+        "cohort_analytics": cohort_analytics,
     }
+
+# Helper to escape CSV formula injection
+def _escape_csv(val):
+    if val is None:
+        return ""
+    text = str(val).strip()
+    if text and text[0] in ("=", "+", "-", "@", "\t", "\r"):
+        return f"'{text}"
+    return text
 
 # Alumni Verification Toggle (Admin only)
 @router.put("/alumni/{alumni_id}/verify")
@@ -119,6 +169,15 @@ def toggle_alumni_verification(
     alumni.is_verified = is_verified
     db.commit()
     db.refresh(alumni)
+
+    log_admin_action(
+        db=db,
+        admin_user_id=current_user.id,
+        action="VERIFY_ALUMNI" if is_verified else "UNVERIFY_ALUMNI",
+        target_type="ALUMNI",
+        target_id=str(alumni.id),
+        details={"name": alumni.name, "email": alumni.email, "is_verified": is_verified}
+    )
 
     return {
         "id": alumni.id,
@@ -156,15 +215,15 @@ def export_alumni_csv(
 
     for a in alumni_records:
         writer.writerow([
-            a.id,
-            a.name or "",
-            a.email or "",
-            a.graduation_year or "",
-            a.department or "",
-            a.company or "",
-            a.job_role or "",
-            a.location or "",
-            a.skills or "",
+            _escape_csv(a.id),
+            _escape_csv(a.name or ""),
+            _escape_csv(a.email or ""),
+            _escape_csv(a.graduation_year or ""),
+            _escape_csv(a.department or ""),
+            _escape_csv(a.company or ""),
+            _escape_csv(a.job_role or ""),
+            _escape_csv(a.location or ""),
+            _escape_csv(a.skills or ""),
             "Yes" if getattr(a, "is_verified", False) else "No",
             "Yes" if a.mentorship_available else "No",
             a.created_at.strftime("%Y-%m-%d") if a.created_at else "",

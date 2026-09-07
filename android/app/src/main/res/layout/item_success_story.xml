@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="12dp"
+    android:layout_marginVertical="6dp"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="2dp"
+    app:cardBackgroundColor="@color/card_background">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Top Row: Badge & Date -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="#FEF3C7"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="3dp"
+                android:text="⭐ SUCCESS STORY"
+                android:textColor="#B45309"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:id="@+id/tv_story_date"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="2026-03-01"
+                android:textColor="@color/text_muted"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <!-- Story Title -->
+        <TextView
+            android:id="@+id/tv_story_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="From Campus to Engineering Lead at Stripe"
+            android:textColor="@color/text_primary"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <!-- Author & Role Info -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tv_story_author"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Priya Sharma"
+                android:textColor="@color/primary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tv_story_batch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:text="('21)"
+                android:textColor="@color/text_muted"
+                android:textSize="12sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="6dp"
+                android:text="•"
+                android:textColor="@color/text_muted"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/tv_story_role_company"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Staff Engineer @ Stripe"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- Summary -->
+        <TextView
+            android:id="@+id/tv_story_summary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="How participating in college hackathons and alumni mentorship shaped my career..."
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp"
+            android:lineSpacingExtra="2dp" />
+
+        <!-- Content (expandable / preview) -->
+        <TextView
+            android:id="@+id/tv_story_content"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Full journey content..."
+            android:textColor="@color/text_muted"
+            android:textSize="12sp"
+            android:maxLines="3"
+            android:ellipsize="end"
+            android:lineSpacingExtra="2dp" />
+
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import DashboardLayout from "../layouts/DashboardLayout";
 import { eventApi } from "../api/eventApi";
 import { bookmarkApi } from "../api/bookmarkApi";
+import { attendanceApi } from "../api/attendanceApi";
 
 const Events = () => {
   const [events, setEvents] = useState([]);
@@ -14,6 +15,22 @@ const Events = () => {
   const [attendeesModalEvent, setAttendeesModalEvent] = useState(null);
   const [attendees, setAttendees] = useState([]);
   const [attendeesLoading, setAttendeesLoading] = useState(false);
+
+  // Attendance & QR States
+  const [attendanceModalEvent, setAttendanceModalEvent] = useState(null);
+  const [qrData, setQrData] = useState(null);
+  const [attendanceStats, setAttendanceStats] = useState(null);
+  const [attendanceList, setAttendanceList] = useState([]);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [manualUserId, setManualUserId] = useState("");
+  const [manualNotes, setManualNotes] = useState("");
+
+  // Attendee Check-In Modal States
+  const [showCheckInModal, setShowCheckInModal] = useState(false);
+  const [checkInCode, setCheckInCode] = useState("");
+  const [checkingIn, setCheckingIn] = useState(false);
+  const [checkInSuccess, setCheckInSuccess] = useState(null);
+
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
@@ -222,6 +239,69 @@ const Events = () => {
     }
   };
 
+  const handleOpenAttendance = async (event) => {
+    setAttendanceModalEvent(event);
+    setAttendanceLoading(true);
+    setErrorMsg("");
+    try {
+      const [tokenRes, statsRes, listRes] = await Promise.all([
+        attendanceApi.generateQrToken(event.id),
+        attendanceApi.getAttendanceStats(event.id),
+        attendanceApi.getAttendanceList(event.id),
+      ]);
+      setQrData(tokenRes.data);
+      setAttendanceStats(statsRes.data);
+      setAttendanceList(listRes.data || []);
+    } catch (err) {
+      console.error("Failed to load event attendance:", err);
+      setErrorMsg(err.response?.data?.detail || "Failed to load attendance details.");
+    } finally {
+      setAttendanceLoading(false);
+    }
+  };
+
+  const handleManualCheckIn = async (e) => {
+    e.preventDefault();
+    if (!attendanceModalEvent || !manualUserId.trim()) return;
+    try {
+      await attendanceApi.manualCheckIn(
+        attendanceModalEvent.id,
+        parseInt(manualUserId),
+        manualNotes.trim()
+      );
+      setSuccessMsg("Attendee checked in manually.");
+      setManualUserId("");
+      setManualNotes("");
+      // Refresh stats & list
+      const [statsRes, listRes] = await Promise.all([
+        attendanceApi.getAttendanceStats(attendanceModalEvent.id),
+        attendanceApi.getAttendanceList(attendanceModalEvent.id),
+      ]);
+      setAttendanceStats(statsRes.data);
+      setAttendanceList(listRes.data || []);
+    } catch (err) {
+      setErrorMsg(err.response?.data?.detail || "Manual check-in failed.");
+    }
+  };
+
+  const handleSubmitCheckIn = async (e) => {
+    e.preventDefault();
+    if (!checkInCode.trim()) return;
+    setCheckingIn(true);
+    setErrorMsg("");
+    try {
+      const res = await attendanceApi.checkIn(checkInCode.trim());
+      setCheckInSuccess(res.data);
+      setCheckInCode("");
+      setSuccessMsg("Checked in successfully!");
+      fetchEvents();
+    } catch (err) {
+      setErrorMsg(err.response?.data?.detail || "Check-in failed. Please verify your token.");
+    } finally {
+      setCheckingIn(false);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="max-w-7xl mx-auto space-y-6">
@@ -234,14 +314,25 @@ const Events = () => {
             </p>
           </div>
 
-          {canCreate && (
+          <div className="flex items-center gap-3 self-start sm:self-auto">
             <button
-              onClick={() => setShowCreateModal(true)}
-              className="bg-blue-700 hover:bg-blue-800 text-white px-5 py-2.5 rounded-xl font-semibold shadow-md transition flex items-center gap-2 self-start sm:self-auto"
+              onClick={() => {
+                setShowCheckInModal(true);
+                setCheckInSuccess(null);
+              }}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-semibold shadow-xs transition flex items-center gap-1.5 text-sm"
             >
-              <span>+ Create Event</span>
+              <span>🎟️</span> Check In with Code
             </button>
-          )}
+            {canCreate && (
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="bg-blue-700 hover:bg-blue-800 text-white px-5 py-2.5 rounded-xl font-semibold shadow-md transition flex items-center gap-2 text-sm"
+              >
+                <span>+ Create Event</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Alerts */}
@@ -406,6 +497,12 @@ const Events = () => {
 
                     {(role === "admin" || currentUser?.id === event.created_by) && (
                       <div className="flex justify-end gap-3 pt-1 border-t border-slate-50">
+                        <button
+                          onClick={() => handleOpenAttendance(event)}
+                          className="text-xs text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1"
+                        >
+                          <span>📱</span> Attendance & QR
+                        </button>
                         <button
                           onClick={() => handleViewAttendees(event)}
                           className="text-xs text-indigo-600 hover:underline font-semibold"
@@ -589,6 +686,247 @@ const Events = () => {
                     </div>
                   ))}
                 </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Attendance & QR Check-In Modal (Organizer / Admin) */}
+        {attendanceModalEvent && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl relative max-h-[90vh] overflow-y-auto">
+              <button
+                onClick={() => setAttendanceModalEvent(null)}
+                className="absolute right-5 top-5 text-slate-400 hover:text-slate-700 text-xl font-bold"
+              >
+                ✕
+              </button>
+
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full">
+                  Live Attendance Portal
+                </span>
+              </div>
+              <h3 className="text-xl sm:text-2xl font-bold text-slate-900">
+                {attendanceModalEvent.title}
+              </h3>
+              <p className="text-xs text-slate-500 mb-6">
+                Display this QR code at the event entrance or copy the check-in token for attendees.
+              </p>
+
+              {attendanceLoading ? (
+                <div className="py-12 text-center">
+                  <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                  <p className="text-xs text-slate-500">Generating secure attendance token...</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* QR and Token Section */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 text-center">
+                    {qrData?.qr_token && (
+                      <div className="space-y-3">
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+                            qrData.qr_token
+                          )}`}
+                          alt="Event Check-In QR Code"
+                          className="w-44 h-44 mx-auto rounded-xl border border-slate-200 shadow-xs bg-white p-2"
+                        />
+                        <p className="text-xs text-slate-500">
+                          Scan using the AlumniConnect mobile app scanner
+                        </p>
+                        <div className="flex items-center justify-center gap-2 max-w-md mx-auto">
+                          <input
+                            type="text"
+                            readOnly
+                            value={qrData.qr_token}
+                            className="text-xs font-mono bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 w-full text-slate-600 truncate select-all"
+                          />
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(qrData.qr_token);
+                              setSuccessMsg("Check-in token copied to clipboard!");
+                            }}
+                            className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg whitespace-nowrap shadow-xs"
+                          >
+                            Copy Code
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Attendance Stats Cards */}
+                  {attendanceStats && (
+                    <div className="grid grid-cols-3 gap-3 text-center">
+                      <div className="bg-blue-50/60 border border-blue-100 rounded-xl p-3">
+                        <p className="text-xs text-blue-600 font-semibold">Registered</p>
+                        <p className="text-xl font-extrabold text-blue-900 mt-0.5">
+                          {attendanceStats.total_registered}
+                        </p>
+                      </div>
+                      <div className="bg-emerald-50/60 border border-emerald-100 rounded-xl p-3">
+                        <p className="text-xs text-emerald-600 font-semibold">Attended</p>
+                        <p className="text-xl font-extrabold text-emerald-900 mt-0.5">
+                          {attendanceStats.total_attended}
+                        </p>
+                      </div>
+                      <div className="bg-purple-50/60 border border-purple-100 rounded-xl p-3">
+                        <p className="text-xs text-purple-600 font-semibold">Attendance Rate</p>
+                        <p className="text-xl font-extrabold text-purple-900 mt-0.5">
+                          {attendanceStats.attendance_percentage}%
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Manual Check-In Form */}
+                  <form onSubmit={handleManualCheckIn} className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+                      Manual Attendance Check-In
+                    </h4>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        type="number"
+                        value={manualUserId}
+                        onChange={(e) => setManualUserId(e.target.value)}
+                        placeholder="Attendee User ID"
+                        className="px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs sm:w-44 focus:outline-emerald-500"
+                        required
+                      />
+                      <input
+                        type="text"
+                        value={manualNotes}
+                        onChange={(e) => setManualNotes(e.target.value)}
+                        placeholder="Desk notes / Walk-in reason"
+                        className="px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs flex-1 focus:outline-emerald-500"
+                      />
+                      <button
+                        type="submit"
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs"
+                      >
+                        Check In
+                      </button>
+                    </div>
+                  </form>
+
+                  {/* Checked-In Roster */}
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-3 flex items-center justify-between">
+                      <span>Checked-In Roster ({attendanceList.length})</span>
+                    </h4>
+                    {attendanceList.length === 0 ? (
+                      <p className="text-xs text-slate-400 py-3 text-center">
+                        No attendees have checked in yet.
+                      </p>
+                    ) : (
+                      <div className="divide-y divide-slate-100 max-h-48 overflow-y-auto border border-slate-100 rounded-xl bg-white">
+                        {attendanceList.map((rec) => (
+                          <div key={rec.id} className="p-3 flex items-center justify-between text-xs">
+                            <div>
+                              <p className="font-bold text-slate-800">{rec.user_name}</p>
+                              <p className="text-slate-400 text-[11px]">{rec.user_email}</p>
+                            </div>
+                            <div className="text-right">
+                              <span
+                                className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${
+                                  rec.checkin_method === "QR"
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : "bg-blue-100 text-blue-800"
+                                }`}
+                              >
+                                {rec.checkin_method}
+                              </span>
+                              <p className="text-[10px] text-slate-400 mt-0.5">
+                                {new Date(rec.checked_in_at).toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Attendee Check-In Modal */}
+        {showCheckInModal && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative">
+              <button
+                onClick={() => {
+                  setShowCheckInModal(false);
+                  setCheckInSuccess(null);
+                }}
+                className="absolute right-5 top-5 text-slate-400 hover:text-slate-700 text-xl font-bold"
+              >
+                ✕
+              </button>
+
+              <div className="text-center mb-5">
+                <span className="text-3xl">🎟️</span>
+                <h3 className="text-xl font-bold text-slate-900 mt-2">Event Check-In</h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Enter the event check-in code provided by your event organizer.
+                </p>
+              </div>
+
+              {checkInSuccess ? (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 text-center space-y-3">
+                  <span className="text-4xl">🎉</span>
+                  <h4 className="font-bold text-emerald-800 text-base">Check-In Confirmed!</h4>
+                  <p className="text-xs text-emerald-700">
+                    Welcome to the event. Your attendance has been officially verified and recorded.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setShowCheckInModal(false);
+                      setCheckInSuccess(null);
+                    }}
+                    className="mt-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs"
+                  >
+                    Done
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleSubmitCheckIn} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Check-In Code or Token *
+                    </label>
+                    <textarea
+                      rows={4}
+                      value={checkInCode}
+                      onChange={(e) => setCheckInCode(e.target.value)}
+                      placeholder="Paste the event check-in code here..."
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono focus:outline-emerald-500 resize-none"
+                      required
+                    ></textarea>
+                  </div>
+
+                  <div className="pt-2 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowCheckInModal(false)}
+                      className="px-4 py-2 text-slate-600 font-semibold text-xs hover:bg-slate-100 rounded-xl"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={checkingIn || !checkInCode.trim()}
+                      className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs disabled:opacity-50"
+                    >
+                      {checkingIn ? "Verifying..." : "Confirm Attendance"}
+                    </button>
+                  </div>
+                </form>
               )}
             </div>
           </div>

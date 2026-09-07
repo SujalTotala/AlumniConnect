@@ -227,6 +227,31 @@
                         app:cornerRadius="12dp"
                         android:visibility="gone" />
 
+                    <!-- Live Attendance & QR (Admin/Creator) -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_event_attendance"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:backgroundTint="#0D9488"
+                        android:layout_marginTop="8dp"
+                        android:text="📷 Live Attendance &amp; QR"
+                        android:textAllCaps="false"
+                        android:textSize="14sp"
+                        app:cornerRadius="12dp"
+                        android:visibility="gone" />
+
+                    <!-- Scan / Enter Check-In Code (Attendee) -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_event_checkin"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:backgroundTint="#4F46E5"
+                        android:layout_marginTop="8dp"
+                        android:text="🎟️ Check In for Event"
+                        android:textAllCaps="false"
+                        android:textSize="14sp"
+                        app:cornerRadius="12dp" />
+
                     <!-- Registration progress -->
                     <ProgressBar
                         android:id="@+id/progress_registration"

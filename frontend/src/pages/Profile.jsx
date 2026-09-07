@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import DashboardLayout from "../layouts/DashboardLayout";
 import { profileApi } from "../api/profileApi";
 import { preferenceApi } from "../api/preferenceApi";
+import { achievementApi } from "../api/achievementApi";
 
 const Profile = () => {
   const [profileData, setProfileData] = useState(null);
@@ -14,6 +15,19 @@ const Profile = () => {
   });
   const [showPrefModal, setShowPrefModal] = useState(false);
   const [savingPrefs, setSavingPrefs] = useState(false);
+
+  // Achievements States
+  const [achievements, setAchievements] = useState([]);
+  const [showAddAchModal, setShowAddAchModal] = useState(false);
+  const [submittingAch, setSubmittingAch] = useState(false);
+  const [achForm, setAchForm] = useState({
+    title: "",
+    description: "",
+    category: "HONOR",
+    issuer: "",
+    issue_date: "",
+    evidence_url: "",
+  });
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -78,6 +92,14 @@ const Profile = () => {
         interests: p.interests || "",
         profile_image_url: p.profile_image_url || "",
       });
+
+      // Load achievements
+      try {
+        const achRes = await achievementApi.getMyAchievements();
+        setAchievements(achRes.data || []);
+      } catch (e) {
+        // Unverified or error
+      }
     } catch (err) {
       console.error("Failed to load profile:", err);
       setErrorMsg("Failed to load your profile. Please try refreshing.");
@@ -126,6 +148,46 @@ const Profile = () => {
       setErrorMsg(detail);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSubmitAchievement = async (e) => {
+    e.preventDefault();
+    if (!achForm.title.trim() || !achForm.description.trim()) {
+      setErrorMsg("Title and description are required.");
+      return;
+    }
+    setSubmittingAch(true);
+    setErrorMsg("");
+    try {
+      await achievementApi.submitAchievement(achForm);
+      setSuccessMsg("Achievement submitted! It will appear on your profile once approved by admins.");
+      setShowAddAchModal(false);
+      setAchForm({
+        title: "",
+        description: "",
+        category: "HONOR",
+        issuer: "",
+        issue_date: "",
+        evidence_url: "",
+      });
+      const achRes = await achievementApi.getMyAchievements();
+      setAchievements(achRes.data || []);
+    } catch (err) {
+      setErrorMsg(err.response?.data?.detail || "Failed to submit achievement.");
+    } finally {
+      setSubmittingAch(false);
+    }
+  };
+
+  const handleDeleteAchievement = async (achId) => {
+    if (!window.confirm("Delete this achievement record?")) return;
+    try {
+      await achievementApi.deleteAchievement(achId);
+      setAchievements((prev) => prev.filter((a) => a.id !== achId));
+      setSuccessMsg("Achievement removed.");
+    } catch (err) {
+      setErrorMsg(err.response?.data?.detail || "Failed to delete achievement.");
     }
   };
 
@@ -538,6 +600,218 @@ const Profile = () => {
                   {savingPrefs ? "Saving..." : "Save Preferences"}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Honors, Awards & Achievements Section (Alumni & Admin) */}
+        {role !== "student" && (
+          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <span>🏆</span> Honors, Awards & Recognitions
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Showcase professional awards, certifications, patents, and domain milestones.
+                </p>
+              </div>
+
+              {isVerified && (
+                <button
+                  type="button"
+                  onClick={() => setShowAddAchModal(true)}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs self-start sm:self-auto"
+                >
+                  + Add Recognition
+                </button>
+              )}
+            </div>
+
+            {!isVerified && (
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+                <span>⚠️ Note: </span>
+                Alumni profile verification by administrator is required to add and publish honors.
+              </div>
+            )}
+
+            {achievements.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 text-xs">
+                No achievements or honors listed yet.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {achievements.map((ach) => (
+                  <div
+                    key={ach.id}
+                    className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col justify-between gap-3"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 uppercase tracking-wider">
+                          {ach.category}
+                        </span>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            ach.status === "APPROVED"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : ach.status === "PENDING"
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-rose-100 text-rose-800"
+                          }`}
+                        >
+                          {ach.status}
+                        </span>
+                      </div>
+                      <h4 className="font-bold text-slate-900 text-sm">{ach.title}</h4>
+                      {ach.issuer && (
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Issued by {ach.issuer} {ach.issue_date && `• ${ach.issue_date}`}
+                        </p>
+                      )}
+                      <p className="text-xs text-slate-600 mt-2 line-clamp-3 leading-relaxed">
+                        {ach.description}
+                      </p>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between">
+                      {ach.evidence_url ? (
+                        <a
+                          href={ach.evidence_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[11px] text-blue-600 hover:underline font-semibold"
+                        >
+                          View Credential ↗
+                        </a>
+                      ) : (
+                        <span></span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAchievement(ach.id)}
+                        className="text-xs text-rose-600 hover:text-rose-800 font-semibold"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Add Achievement Modal */}
+        {showAddAchModal && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl relative">
+              <button
+                onClick={() => setShowAddAchModal(false)}
+                className="absolute right-5 top-5 text-slate-400 hover:text-slate-700 text-xl font-bold"
+              >
+                ✕
+              </button>
+
+              <h3 className="text-xl font-bold text-slate-900 mb-1">Add Honor or Achievement</h3>
+              <p className="text-xs text-slate-500 mb-5">
+                Submitted honors undergo quick admin moderation before appearing publicly.
+              </p>
+
+              <form onSubmit={handleSubmitAchievement} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Title *</label>
+                  <input
+                    type="text"
+                    value={achForm.title}
+                    onChange={(e) => setAchForm({ ...achForm, title: e.target.value })}
+                    placeholder="e.g. AWS Certified Solutions Architect - Professional"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-amber-500"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Category</label>
+                    <select
+                      value={achForm.category}
+                      onChange={(e) => setAchForm({ ...achForm, category: e.target.value })}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-amber-500"
+                    >
+                      <option value="HONOR">Honor</option>
+                      <option value="AWARD">Award</option>
+                      <option value="CERTIFICATION">Certification</option>
+                      <option value="PATENT">Patent</option>
+                      <option value="PUBLICATION">Publication</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Issue Date</label>
+                    <input
+                      type="date"
+                      value={achForm.issue_date}
+                      onChange={(e) => setAchForm({ ...achForm, issue_date: e.target.value })}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Issuing Organization
+                  </label>
+                  <input
+                    type="text"
+                    value={achForm.issuer}
+                    onChange={(e) => setAchForm({ ...achForm, issuer: e.target.value })}
+                    placeholder="e.g. Amazon Web Services, IEEE, Forbes"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Description *</label>
+                  <textarea
+                    rows={3}
+                    value={achForm.description}
+                    onChange={(e) => setAchForm({ ...achForm, description: e.target.value })}
+                    placeholder="Summary of what this achievement entails..."
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-amber-500"
+                    required
+                  ></textarea>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Evidence / Verification Link
+                  </label>
+                  <input
+                    type="url"
+                    value={achForm.evidence_url}
+                    onChange={(e) => setAchForm({ ...achForm, evidence_url: e.target.value })}
+                    placeholder="https://credly.com/badges/..."
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-amber-500"
+                  />
+                </div>
+
+                <div className="pt-2 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddAchModal(false)}
+                    className="px-4 py-2 text-slate-600 font-semibold text-xs hover:bg-slate-100 rounded-xl"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submittingAch}
+                    className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs disabled:opacity-50"
+                  >
+                    {submittingAch ? "Submitting..." : "Submit Recognition"}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

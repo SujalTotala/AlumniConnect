@@ -3,6 +3,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
         android:name=".AlumniConnectApp"
@@ -95,6 +97,36 @@
             android:exported="false"
             android:theme="@style/Theme.AlumniConnect.NoActionBar"
             android:parentActivityName=".activities.MainActivity" />
+
+        <activity
+            android:name=".activities.QRScannerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AlumniConnect.NoActionBar"
+            android:parentActivityName=".activities.EventDetailsActivity" />
+
+        <activity
+            android:name=".activities.EventAttendanceActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AlumniConnect.NoActionBar"
+            android:parentActivityName=".activities.EventDetailsActivity" />
+
+        <activity
+            android:name=".activities.SuccessStoriesActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AlumniConnect.NoActionBar"
+            android:parentActivityName=".activities.MainActivity" />
+
+        <activity
+            android:name=".activities.CommunitiesActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AlumniConnect.NoActionBar"
+            android:parentActivityName=".activities.MainActivity" />
+
+        <activity
+            android:name=".activities.CommunityDetailsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AlumniConnect.NoActionBar"
+            android:parentActivityName=".activities.CommunitiesActivity" />
 
     </application>
 

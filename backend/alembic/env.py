@@ -25,6 +25,13 @@ from app.models.announcement_model import Announcement
 from app.models.preference_model import NotificationPreference
 from app.models.connection_model import Connection
 from app.models.referral_model import ReferralRequest
+from app.models.attendance_model import EventAttendance
+from app.models.story_model import SuccessStory
+from app.models.community_model import Community, CommunityMember, CommunityPost
+from app.models.achievement_model import Achievement
+from app.models.import_job_model import AlumniImportJob
+from app.models.segment_model import AlumniSegment
+from app.models.audit_model import AdminAuditLog
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

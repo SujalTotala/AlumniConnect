@@ -14,6 +14,13 @@ from app.models.opportunity_model import Opportunity
 from app.models.notification_model import Notification
 from app.models.connection_model import Connection
 from app.models.referral_model import ReferralRequest
+from app.models.attendance_model import EventAttendance
+from app.models.story_model import SuccessStory
+from app.models.community_model import Community, CommunityMember, CommunityPost
+from app.models.achievement_model import Achievement
+from app.models.import_job_model import AlumniImportJob
+from app.models.segment_model import AlumniSegment
+from app.models.audit_model import AdminAuditLog
 
 # Import all routers
 from app.routes.auth_routes import router as auth_router
@@ -30,6 +37,11 @@ from app.routes.activity_routes import router as activity_router
 from app.routes.preference_routes import router as preference_router
 from app.routes.connection_routes import router as connection_router
 from app.routes.referral_routes import router as referral_router
+from app.routes.attendance_routes import router as attendance_router
+from app.routes.story_routes import router as story_router
+from app.routes.community_routes import router as community_router
+from app.routes.achievement_routes import router as achievement_router
+from app.routes.admin_alumni_routes import router as admin_alumni_router
 
 # Keep local development convenient, but production schema changes must be
 # applied explicitly through Alembic before the application starts.
@@ -107,3 +119,8 @@ app.include_router(activity_router, prefix="/activity-feed", tags=["Activity Fee
 app.include_router(preference_router, prefix="/notification-preferences", tags=["Notification Preferences"])
 app.include_router(connection_router, prefix="/connections", tags=["Connections & Networking"])
 app.include_router(referral_router, prefix="/referrals", tags=["Referrals"])
+app.include_router(attendance_router, prefix="/events", tags=["Event Attendance"])
+app.include_router(story_router, prefix="/success-stories", tags=["Success Stories"])
+app.include_router(community_router, prefix="/communities", tags=["Communities"])
+app.include_router(achievement_router, prefix="/achievements", tags=["Achievements"])
+app.include_router(admin_alumni_router, prefix="/admin", tags=["Alumni Data Management"])

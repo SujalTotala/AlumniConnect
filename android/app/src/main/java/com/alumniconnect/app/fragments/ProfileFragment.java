@@ -42,6 +42,11 @@ public class ProfileFragment extends Fragment {
     private LinearLayout layoutProfileFields;
     private View btnEditProfile, btnProfileAbout, btnSavedItems, btnNotificationPrefs;
     private ProfileResponse currentProfile;
+    private com.alumniconnect.app.repositories.AchievementRepository achievementRepository;
+    private com.alumniconnect.app.adapters.AchievementsAdapter achievementsAdapter;
+    private androidx.recyclerview.widget.RecyclerView rvAchievements;
+    private TextView tvEmptyAchievements;
+    private View btnAddAchievement;
 
     // Completion UI
     private TextView tvCompletionPercentage, tvCompletionHint;
@@ -103,7 +108,23 @@ public class ProfileFragment extends Fragment {
             });
         }
 
+        achievementRepository = new com.alumniconnect.app.repositories.AchievementRepository(requireContext());
+        rvAchievements = view.findViewById(R.id.rv_profile_achievements);
+        tvEmptyAchievements = view.findViewById(R.id.tv_empty_achievements);
+        btnAddAchievement = view.findViewById(R.id.btn_add_achievement);
+
+        if (rvAchievements != null) {
+            achievementsAdapter = new com.alumniconnect.app.adapters.AchievementsAdapter();
+            rvAchievements.setLayoutManager(new androidx.recyclerview.widget.LinearLayoutManager(requireContext()));
+            rvAchievements.setAdapter(achievementsAdapter);
+        }
+
+        if (btnAddAchievement != null) {
+            btnAddAchievement.setOnClickListener(v -> showAddAchievementDialog());
+        }
+
         loadProfile(false);
+        loadAchievements();
     }
 
     @Override
@@ -390,5 +411,96 @@ public class ProfileFragment extends Fragment {
         u.setEmail(p.getEmail());
         u.setRole(p.getRole());
         return u;
+    }
+
+    private void loadAchievements() {
+        if (achievementRepository == null || achievementsAdapter == null) return;
+        achievementRepository.getMyAchievements().enqueue(new Callback<java.util.List<com.alumniconnect.app.models.Achievement>>() {
+            @Override
+            public void onResponse(@NonNull Call<java.util.List<com.alumniconnect.app.models.Achievement>> call,
+                                   @NonNull Response<java.util.List<com.alumniconnect.app.models.Achievement>> response) {
+                if (!isAdded() || getContext() == null) return;
+                if (response.isSuccessful() && response.body() != null) {
+                    java.util.List<com.alumniconnect.app.models.Achievement> list = response.body();
+                    achievementsAdapter.setList(list);
+                    if (tvEmptyAchievements != null) {
+                        tvEmptyAchievements.setVisibility(list.isEmpty() ? View.VISIBLE : View.GONE);
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(@NonNull Call<java.util.List<com.alumniconnect.app.models.Achievement>> call, @NonNull Throwable t) {}
+        });
+    }
+
+    private void showAddAchievementDialog() {
+        if (!isAdded() || getContext() == null) return;
+        View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_submit_achievement, null);
+        com.google.android.material.textfield.TextInputEditText etTitle = dialogView.findViewById(R.id.et_ach_title);
+        android.widget.Spinner spinnerCategory = dialogView.findViewById(R.id.spinner_ach_category);
+        com.google.android.material.textfield.TextInputEditText etIssuer = dialogView.findViewById(R.id.et_ach_issuer);
+        com.google.android.material.textfield.TextInputEditText etDate = dialogView.findViewById(R.id.et_ach_date);
+        com.google.android.material.textfield.TextInputEditText etDesc = dialogView.findViewById(R.id.et_ach_desc);
+        com.google.android.material.textfield.TextInputEditText etUrl = dialogView.findViewById(R.id.et_ach_url);
+        ProgressBar dialogProgress = dialogView.findViewById(R.id.progress_dialog_ach);
+
+        String[] categories = {"Award", "Certification", "Patent", "Publication", "Honor", "Other"};
+        android.widget.ArrayAdapter<String> catAdapter = new android.widget.ArrayAdapter<>(requireContext(),
+                android.R.layout.simple_spinner_dropdown_item, categories);
+        spinnerCategory.setAdapter(catAdapter);
+
+        androidx.appcompat.app.AlertDialog dialog = new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setView(dialogView)
+                .setPositiveButton("Add", null)
+                .setNegativeButton("Cancel", (d, which) -> d.dismiss())
+                .create();
+
+        dialog.setOnShowListener(d -> {
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                String title = etTitle.getText() != null ? etTitle.getText().toString().trim() : "";
+                String issuer = etIssuer.getText() != null ? etIssuer.getText().toString().trim() : "";
+                String date = etDate.getText() != null ? etDate.getText().toString().trim() : "";
+                String desc = etDesc.getText() != null ? etDesc.getText().toString().trim() : "";
+                String url = etUrl.getText() != null ? etUrl.getText().toString().trim() : "";
+                String category = spinnerCategory.getSelectedItem().toString().toLowerCase();
+
+                if (title.isEmpty()) {
+                    etTitle.setError("Title is required");
+                    return;
+                }
+
+                dialogProgress.setVisibility(View.VISIBLE);
+                dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setEnabled(false);
+
+                com.alumniconnect.app.models.AchievementCreateRequest request =
+                        new com.alumniconnect.app.models.AchievementCreateRequest(title, desc, category, date, issuer, url);
+
+                achievementRepository.createAchievement(request).enqueue(new Callback<com.alumniconnect.app.models.Achievement>() {
+                    @Override
+                    public void onResponse(@NonNull Call<com.alumniconnect.app.models.Achievement> call,
+                                           @NonNull Response<com.alumniconnect.app.models.Achievement> response) {
+                        dialogProgress.setVisibility(View.GONE);
+                        if (response.isSuccessful()) {
+                            dialog.dismiss();
+                            Toast.makeText(requireContext(), "Achievement submitted for review!", Toast.LENGTH_SHORT).show();
+                            loadAchievements();
+                        } else {
+                            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setEnabled(true);
+                            Toast.makeText(requireContext(), "Submission failed: " + response.code(), Toast.LENGTH_SHORT).show();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(@NonNull Call<com.alumniconnect.app.models.Achievement> call, @NonNull Throwable t) {
+                        dialogProgress.setVisibility(View.GONE);
+                        dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setEnabled(true);
+                        Toast.makeText(requireContext(), "Network error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                    }
+                });
+            });
+        });
+
+        dialog.show();
     }
 }
