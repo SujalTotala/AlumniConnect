@@ -20,6 +20,11 @@ android {
         debug {
             buildConfigField "String", "API_BASE_URL", "\"http://10.0.2.2:8000/\""
         }
+        review {
+            signingConfig signingConfigs.debug
+            matchingFallbacks = ['debug']
+            buildConfigField "String", "API_BASE_URL", "\"https://alumniconnect-bwoi.onrender.com/\""
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
