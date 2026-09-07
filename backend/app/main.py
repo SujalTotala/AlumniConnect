@@ -60,7 +60,12 @@ allowed_origins_env = ALLOWED_ORIGINS
 env = ENVIRONMENT
 
 # Parse explicit origins from environment
-default_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+default_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://alumniconnect.vercel.app",
+    "https://alumni-connect.vercel.app"
+]
 if allowed_origins_env and allowed_origins_env.strip():
     parsed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip() and o.strip() != "*"]
     origins = list(dict.fromkeys(default_origins + parsed_origins))
@@ -82,7 +87,7 @@ def home():
     return {
         "status": "online",
         "message": "AlumniConnect Backend Running",
-        "version": "1.0.0"
+        "version": "1.0.1-authfix"
     }
 
 
