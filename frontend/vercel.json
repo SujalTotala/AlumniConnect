@@ -1,8 +1,24 @@
 {
   "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
+    { "source": "/auth/(.*)", "destination": "https://alumniconnect-bwoi.onrender.com/auth/$1" },
+    { "source": "/profile/(.*)", "destination": "https://alumniconnect-bwoi.onrender.com/profile/$1" },
+    { "source": "/alumni/(.*)", "destination": "https://alumniconnect-bwoi.onrender.com/alumni/$1" },
+    { "source": "/events/(.*)", "destination": "https://alumniconnect-bwoi.onrender.com/events/$1" },
+    { "source": "/mentorship/(.*)", "destination": "https://alumniconnect-bwoi.onrender.com/mentorship/$1" },
+    { "source": "/mentors/(.*)", "destination": "https://alumniconnect-bwoi.onrender.com/mentors/$1" },
+    { "source": "/opportunities/(.*)", "destination": "https://alumniconnect-bwoi.onrender.com/opportunities/$1" },
+    { "source": "/notifications/(.*)", "destination": "https://alumniconnect-bwoi.onrender.com/notifications/$1" },
+    { "source": "/admin/(.*)", "destination": "https://alumniconnect-bwoi.onrender.com/admin/$1" },
+    { "source": "/bookmarks/(.*)", "destination": "https://alumniconnect-bwoi.onrender.com/bookmarks/$1" },
+    { "source": "/announcements/(.*)", "destination": "https://alumniconnect-bwoi.onrender.com/announcements/$1" },
+    { "source": "/activity-feed/(.*)", "destination": "https://alumniconnect-bwoi.onrender.com/activity-feed/$1" },
+    { "source": "/notification-preferences/(.*)", "destination": "https://alumniconnect-bwoi.onrender.com/notification-preferences/$1" },
+    { "source": "/connections/(.*)", "destination": "https://alumniconnect-bwoi.onrender.com/connections/$1" },
+    { "source": "/referrals/(.*)", "destination": "https://alumniconnect-bwoi.onrender.com/referrals/$1" },
+    { "source": "/success-stories/(.*)", "destination": "https://alumniconnect-bwoi.onrender.com/success-stories/$1" },
+    { "source": "/communities/(.*)", "destination": "https://alumniconnect-bwoi.onrender.com/communities/$1" },
+    { "source": "/achievements/(.*)", "destination": "https://alumniconnect-bwoi.onrender.com/achievements/$1" },
+    { "source": "/health", "destination": "https://alumniconnect-bwoi.onrender.com/health" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

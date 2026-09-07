@@ -1,7 +1,17 @@
 import axios from "axios";
 
-// Default to Render production backend so both local web dev and Vercel cloud deployment work out-of-the-box
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://alumniconnect-bwoi.onrender.com";
+// If running in browser on a Vercel deployment (*.vercel.app), use relative path ("")
+// so that Vercel rewrites proxy all API requests server-side to Render without CORS issues.
+// Otherwise, use VITE_API_BASE_URL or default to Render backend.
+let API_BASE = import.meta.env.VITE_API_BASE_URL;
+
+if (!API_BASE) {
+  if (typeof window !== "undefined" && window.location && window.location.hostname.includes("vercel.app")) {
+    API_BASE = "";
+  } else {
+    API_BASE = "https://alumniconnect-bwoi.onrender.com";
+  }
+}
 
 const API = axios.create({
   baseURL: API_BASE,
