@@ -1,16 +1,18 @@
 import axios from "axios";
 
-// If running in browser on a Vercel deployment (*.vercel.app), use relative path ("")
-// so that Vercel rewrites proxy all API requests server-side to Render without CORS issues.
-// Otherwise, use VITE_API_BASE_URL or default to Render backend.
-let API_BASE = import.meta.env.VITE_API_BASE_URL;
-
-if (!API_BASE) {
-  if (typeof window !== "undefined" && window.location && window.location.hostname.includes("vercel.app")) {
-    API_BASE = "";
-  } else {
-    API_BASE = "https://alumniconnect-bwoi.onrender.com";
-  }
+// Runtime resolution of API Base URL:
+// 1. On Vercel deployments (*.vercel.app), use relative path ("") to route through Vercel's reverse proxy rewrites, completely bypassing browser CORS preflight.
+// 2. On localhost development, connect to local backend (http://127.0.0.1:8000) or VITE_API_BASE_URL.
+// 3. Otherwise, fall back to production Render backend.
+let API_BASE = "";
+if (typeof window !== "undefined" && window.location && window.location.hostname.includes("vercel.app")) {
+  API_BASE = "";
+} else if (import.meta.env.VITE_API_BASE_URL) {
+  API_BASE = import.meta.env.VITE_API_BASE_URL;
+} else if (typeof window !== "undefined" && window.location && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
+  API_BASE = "http://127.0.0.1:8000";
+} else {
+  API_BASE = "https://alumniconnect-bwoi.onrender.com";
 }
 
 const API = axios.create({

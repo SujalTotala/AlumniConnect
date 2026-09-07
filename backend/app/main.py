@@ -64,7 +64,8 @@ default_origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "https://alumniconnect.vercel.app",
-    "https://alumni-connect.vercel.app"
+    "https://alumni-connect.vercel.app",
+    "https://alumni-connect-azure-mu.vercel.app",
 ]
 if allowed_origins_env and allowed_origins_env.strip():
     parsed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip() and o.strip() != "*"]
