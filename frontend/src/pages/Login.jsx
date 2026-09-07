@@ -36,10 +36,11 @@ function Login() {
 
       navigate("/dashboard");
     } catch (error) {
+      console.error("Login attempt failed:", error);
       const msg =
         error.response?.data?.detail ||
         (typeof error.response?.data === "string" ? error.response.data : null) ||
-        "Login failed. Please check your credentials.";
+        (error.message === "Network Error" ? "Unable to connect to backend server. Please check your network connection." : "Login failed. Please check your credentials.");
       setErrorMsg(msg);
     } finally {
       setLoading(false);
