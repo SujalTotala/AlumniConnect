@@ -59,31 +59,19 @@ app = FastAPI(
 allowed_origins_env = ALLOWED_ORIGINS
 env = ENVIRONMENT
 
-if env == "production":
-    if not allowed_origins_env:
-        raise RuntimeError("ALLOWED_ORIGINS environment variable must be set in production (comma-separated origins)")
-    origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
-    # Disallow wildcard origins in production when credentials are used
-    if any(o == "*" for o in origins):
-        raise RuntimeError("Wildcard origin '*' is not allowed in production. Provide explicit ALLOWED_ORIGINS.")
-    allow_credentials = True
+# Parse explicit origins from environment
+default_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+if allowed_origins_env and allowed_origins_env.strip():
+    parsed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip() and o.strip() != "*"]
+    origins = list(dict.fromkeys(default_origins + parsed_origins))
 else:
-    # Development/testing defaults — allow common local dev origins if not provided
-    if allowed_origins_env:
-        origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
-    else:
-        origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
-    # Allow credentials for local flows
-    allow_credentials = True
-
-if "*" in origins and allow_credentials:
-    # Defensive: do not combine wildcard origins with credentials
-    allow_credentials = False
+    origins = default_origins
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=allow_credentials,
+    allow_origin_regex=r"^https://.*\.vercel\.app$",
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )

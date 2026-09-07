@@ -78,7 +78,7 @@ public class LoginActivity extends AppCompatActivity {
     private void performLogin() {
         if (isLoggingIn) return; // Prevent duplicate rapid submission
 
-        String email = etEmail.getText() != null ? etEmail.getText().toString().trim() : "";
+        String email = etEmail.getText() != null ? etEmail.getText().toString().trim().toLowerCase() : "";
         String password = etPassword.getText() != null ? etPassword.getText().toString().trim() : "";
 
         if (TextUtils.isEmpty(email)) {

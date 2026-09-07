@@ -25,7 +25,11 @@ function Login() {
     setErrorMsg("");
 
     try {
-      const response = await API.post("/auth/login", formData);
+      const payload = {
+        email: formData.email.trim().toLowerCase(),
+        password: formData.password,
+      };
+      const response = await API.post("/auth/login", payload);
 
       if (response.data.access_token) {
         localStorage.setItem("token", response.data.access_token);

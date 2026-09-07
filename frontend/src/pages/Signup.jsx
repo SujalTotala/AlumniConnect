@@ -28,7 +28,13 @@ function Signup() {
     setErrorMsg("");
 
     try {
-      const response = await API.post("/auth/register", formData);
+      const payload = {
+        name: (formData.name || "").trim(),
+        email: (formData.email || "").trim().toLowerCase(),
+        password: formData.password,
+        role: (formData.role || "student").trim().toLowerCase(),
+      };
+      const response = await API.post("/auth/register", payload);
 
       if (response.data.access_token) {
         localStorage.setItem("token", response.data.access_token);

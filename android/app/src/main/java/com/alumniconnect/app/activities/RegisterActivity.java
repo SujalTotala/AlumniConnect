@@ -60,7 +60,7 @@ public class RegisterActivity extends AppCompatActivity {
         if (isRegistering) return; // Prevent duplicate rapid submission
 
         String name = etName.getText() != null ? etName.getText().toString().trim() : "";
-        String email = etEmail.getText() != null ? etEmail.getText().toString().trim() : "";
+        String email = etEmail.getText() != null ? etEmail.getText().toString().trim().toLowerCase() : "";
         String password = etPassword.getText() != null ? etPassword.getText().toString().trim() : "";
         String role = rbAlumni.isChecked() ? "alumni" : "student";
 

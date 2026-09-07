@@ -2,6 +2,7 @@ from typing import List, Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.database.db_dependency import get_db
 from app.models.user_model import User
@@ -31,7 +32,7 @@ def get_current_user(
     if email is None:
         raise credentials_exception
 
-    user = db.query(User).filter(User.email == email).first()
+    user = db.query(User).filter(func.lower(User.email) == email.strip().lower()).first()
     if user is None:
         raise credentials_exception
     
@@ -56,7 +57,7 @@ def get_optional_current_user(
         email = payload.get("sub")
         if not email:
             return None
-        user = db.query(User).filter(User.email == email).first()
+        user = db.query(User).filter(func.lower(User.email) == email.strip().lower()).first()
         if user is None or (hasattr(user, "is_active") and not user.is_active):
             return None
         return user
