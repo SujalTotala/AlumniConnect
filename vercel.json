@@ -1,5 +1,6 @@
 {
-  "buildCommand": "cd frontend && npm install && VITE_API_BASE_URL=${VITE_API_BASE_URL:-https://alumniconnect-bwoi.onrender.com} npm run build",
+  "installCommand": "npm --prefix frontend install",
+  "buildCommand": "npm --prefix frontend run build",
   "outputDirectory": "frontend/dist",
   "rewrites": [
     {
