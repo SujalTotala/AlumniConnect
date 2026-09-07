@@ -41,7 +41,7 @@ function Signup() {
       const msg =
         error.response?.data?.detail ||
         (typeof error.response?.data === "string" ? error.response.data : null) ||
-        "Registration failed. Please try again.";
+        (error.message === "Network Error" ? "Unable to connect to backend server. Please verify your connection or try again." : "Registration failed. Please try again.");
       setErrorMsg(msg);
     } finally {
       setLoading(false);

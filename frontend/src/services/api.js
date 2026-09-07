@@ -1,9 +1,10 @@
 import axios from "axios";
 
-// Require explicit API base URL in production, falling back to verified production backend
-const envBase = import.meta.env.VITE_API_BASE_URL || (import.meta.env.MODE === "production" ? "https://alumniconnect-bwoi.onrender.com" : "");
+// Default to Render production backend so both local web dev and Vercel cloud deployment work out-of-the-box
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://alumniconnect-bwoi.onrender.com";
+
 const API = axios.create({
-  baseURL: envBase || "http://127.0.0.1:8000",
+  baseURL: API_BASE,
   headers: {
     "Content-Type": "application/json",
   },
