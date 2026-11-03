@@ -46,3 +46,4 @@ class AlumniResponse(BaseModel):
     linkedin_url: Optional[str] = None
     github_url: Optional[str] = None
     mentorship_available: Optional[bool] = False
+    is_verified: bool = False

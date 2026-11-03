@@ -1,6 +1,9 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+import csv
+import io
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.database.db_dependency import get_db
 from app.models.user_model import User
@@ -8,16 +11,24 @@ from app.models.alumni_model import Alumni
 from app.models.event_model import Event, EventRegistration
 from app.models.mentorship_model import MentorshipRequest
 from app.models.opportunity_model import Opportunity
+from app.models.announcement_model import Announcement
+from app.models.connection_model import Connection
+from app.models.referral_model import ReferralRequest
+from app.models.attendance_model import EventAttendance
+from app.models.story_model import SuccessStory
+from app.models.community_model import Community, CommunityMember
+from app.models.achievement_model import Achievement
 from app.schemas.admin_schema import (
     AdminStatisticsResponse,
     UserStatusUpdate,
     UserAdminResponse
 )
 from app.auth.jwt_dependency import require_role
+from app.services.audit_service import log_admin_action
 
 router = APIRouter()
 
-# Get Platform Statistics (Admin only)
+# Get Platform Statistics with breakdowns (Admin only)
 @router.get("/statistics", response_model=AdminStatisticsResponse)
 def get_admin_statistics(
     db: Session = Depends(get_db),
@@ -34,6 +45,75 @@ def get_admin_statistics(
         MentorshipRequest.status == "PENDING"
     ).count()
 
+    verified_alumni = db.query(Alumni).filter(Alumni.is_verified == True).count()
+    total_announcements = db.query(Announcement).count()
+
+    # Aggregated breakdown: alumni by department
+    dept_rows = (
+        db.query(Alumni.department, func.count(Alumni.id))
+        .filter(Alumni.department.isnot(None), Alumni.department != "")
+        .group_by(Alumni.department)
+        .order_by(func.count(Alumni.id).desc())
+        .limit(8)
+        .all()
+    )
+    alumni_by_dept = {row[0]: row[1] for row in dept_rows if row[0]}
+
+    # Aggregated breakdown: alumni by graduation year
+    year_rows = (
+        db.query(Alumni.graduation_year, func.count(Alumni.id))
+        .filter(Alumni.graduation_year.isnot(None), Alumni.graduation_year != "")
+        .group_by(Alumni.graduation_year)
+        .order_by(Alumni.graduation_year.desc())
+        .limit(8)
+        .all()
+    )
+    alumni_by_year = {row[0]: row[1] for row in year_rows if row[0]}
+
+    # Aggregated breakdown: alumni by company
+    comp_rows = (
+        db.query(Alumni.company, func.count(Alumni.id))
+        .filter(Alumni.company.isnot(None), Alumni.company != "")
+        .group_by(Alumni.company)
+        .order_by(func.count(Alumni.id).desc())
+        .limit(8)
+        .all()
+    )
+    alumni_by_company = {row[0]: row[1] for row in comp_rows if row[0]}
+
+    # Networking & Referral aggregate stats (admin visibility, no private messages)
+    total_connections = db.query(Connection).count()
+    accepted_connections = db.query(Connection).filter(Connection.status == "ACCEPTED").count()
+    pending_conn_requests = db.query(Connection).filter(Connection.status == "PENDING").count()
+    total_referrals = db.query(ReferralRequest).count()
+    accepted_referrals = db.query(ReferralRequest).filter(ReferralRequest.status == "ACCEPTED").count()
+
+    # Pass 2B Engagement & Attendance stats
+    events_registered = total_event_registrations
+    event_attendance_total = db.query(EventAttendance).count()
+    event_attendance_rate = (
+        round(float(event_attendance_total) / float(events_registered) * 100.0, 1)
+        if events_registered > 0
+        else 0.0
+    )
+    success_stories_total = db.query(SuccessStory).count()
+    success_stories_pending = db.query(SuccessStory).filter(SuccessStory.status == "PENDING").count()
+    communities_total = db.query(Community).filter(Community.is_active == True).count()
+    community_memberships = db.query(CommunityMember).count()
+    achievements_total = db.query(Achievement).count()
+    achievements_pending = db.query(Achievement).filter(Achievement.status == "PENDING").count()
+
+    # Cohort Analytics by graduation year
+    cohort_analytics = {}
+    for year, count in alumni_by_year.items():
+        v_count = db.query(Alumni).filter(Alumni.graduation_year == str(year), Alumni.is_verified == True).count()
+        m_count = db.query(Alumni).filter(Alumni.graduation_year == str(year), Alumni.mentorship_available == True).count()
+        cohort_analytics[str(year)] = {
+            "total_alumni": count,
+            "verified_alumni": v_count,
+            "active_mentors": m_count
+        }
+
     return {
         "total_users": total_users,
         "total_alumni": total_alumni,
@@ -42,8 +122,124 @@ def get_admin_statistics(
         "total_events": total_events,
         "total_event_registrations": total_event_registrations,
         "total_opportunities": total_opportunities,
-        "pending_mentorship_requests": pending_mentorship_requests
+        "pending_mentorship_requests": pending_mentorship_requests,
+        "verified_alumni": verified_alumni,
+        "total_announcements": total_announcements,
+        "alumni_by_department": alumni_by_dept,
+        "alumni_by_graduation_year": alumni_by_year,
+        "alumni_by_company": alumni_by_company,
+        "total_connections": total_connections,
+        "accepted_connections": accepted_connections,
+        "pending_connection_requests": pending_conn_requests,
+        "total_referral_requests": total_referrals,
+        "accepted_referral_requests": accepted_referrals,
+        "events_registered": events_registered,
+        "event_attendance_total": event_attendance_total,
+        "event_attendance_rate": event_attendance_rate,
+        "success_stories_total": success_stories_total,
+        "success_stories_pending": success_stories_pending,
+        "communities_total": communities_total,
+        "community_memberships": community_memberships,
+        "achievements_total": achievements_total,
+        "achievements_pending": achievements_pending,
+        "cohort_analytics": cohort_analytics,
     }
+
+# Helper to escape CSV formula injection
+def _escape_csv(val):
+    if val is None:
+        return ""
+    text = str(val).strip()
+    if text and text[0] in ("=", "+", "-", "@", "\t", "\r"):
+        return f"'{text}"
+    return text
+
+# Alumni Verification Toggle (Admin only)
+@router.put("/alumni/{alumni_id}/verify")
+def toggle_alumni_verification(
+    alumni_id: int,
+    is_verified: bool = Query(..., description="Target verification status"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["admin"]))
+):
+    alumni = db.query(Alumni).filter(Alumni.id == alumni_id).first()
+    if not alumni:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alumni profile not found")
+
+    alumni.is_verified = is_verified
+    db.commit()
+    db.refresh(alumni)
+
+    log_admin_action(
+        db=db,
+        admin_user_id=current_user.id,
+        action="VERIFY_ALUMNI" if is_verified else "UNVERIFY_ALUMNI",
+        target_type="ALUMNI",
+        target_id=str(alumni.id),
+        details={"name": alumni.name, "email": alumni.email, "is_verified": is_verified}
+    )
+
+    return {
+        "id": alumni.id,
+        "name": alumni.name,
+        "is_verified": alumni.is_verified,
+        "message": f"Alumni verification {'granted' if is_verified else 'revoked'} successfully",
+    }
+
+# Secure CSV Export of Alumni Directory (Admin only)
+@router.get("/alumni/export-csv")
+def export_alumni_csv(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["admin"]))
+):
+    alumni_records = db.query(Alumni).order_by(Alumni.id.asc()).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
+
+    # Header - Non-sensitive columns only
+    writer.writerow([
+        "ID",
+        "Name",
+        "Email",
+        "Graduation Year",
+        "Department",
+        "Company",
+        "Job Role",
+        "Location",
+        "Skills",
+        "Verified",
+        "Mentorship Available",
+        "Joined Date",
+    ])
+
+    for a in alumni_records:
+        writer.writerow([
+            _escape_csv(a.id),
+            _escape_csv(a.name or ""),
+            _escape_csv(a.email or ""),
+            _escape_csv(a.graduation_year or ""),
+            _escape_csv(a.department or ""),
+            _escape_csv(a.company or ""),
+            _escape_csv(a.job_role or ""),
+            _escape_csv(a.location or ""),
+            _escape_csv(a.skills or ""),
+            "Yes" if getattr(a, "is_verified", False) else "No",
+            "Yes" if a.mentorship_available else "No",
+            a.created_at.strftime("%Y-%m-%d") if a.created_at else "",
+        ])
+
+    csv_data = output.getvalue()
+    output.close()
+
+    return Response(
+        content=csv_data,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": "attachment; filename=alumni_directory.csv",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+        },
+    )
 
 # Get Users List (Admin only)
 @router.get("/users", response_model=List[UserAdminResponse])

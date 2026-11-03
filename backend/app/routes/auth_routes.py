@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.database.db_dependency import get_db
 from app.models.user_model import User
@@ -13,7 +14,11 @@ router = APIRouter()
 # Register User
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
-    existing_user = db.query(User).filter(User.email == user.email).first()
+    clean_email = user.email.strip().lower()
+    clean_name = user.name.strip()
+    role = (user.role or "student").strip().lower()
+
+    existing_user = db.query(User).filter(func.lower(User.email) == clean_email).first()
 
     if existing_user:
         raise HTTPException(
@@ -23,7 +28,6 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
 
     hashed_pwd = hash_password(user.password)
 
-    role = user.role.lower() if user.role else "student"
     if role == "admin":
         admin_exists = db.query(User).filter(User.role == "admin").first()
         if admin_exists:
@@ -33,8 +37,8 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
             )
 
     new_user = User(
-        name=user.name,
-        email=user.email,
+        name=clean_name,
+        email=clean_email,
         password=hashed_pwd,
         role=role
     )
@@ -45,12 +49,12 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
 
     # If registered as alumni, create default alumni directory record if not already present
     if new_user.role == "alumni":
-        existing_alumni = db.query(Alumni).filter(Alumni.email == new_user.email).first()
+        existing_alumni = db.query(Alumni).filter(func.lower(Alumni.email) == clean_email).first()
         if not existing_alumni:
             new_alumni = Alumni(
                 user_id=new_user.id,
-                name=new_user.name,
-                email=new_user.email
+                name=clean_name,
+                email=clean_email
             )
             db.add(new_alumni)
             db.commit()
@@ -73,7 +77,8 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
 # Login User
 @router.post("/login", response_model=TokenResponse)
 def login_user(user: UserLogin, db: Session = Depends(get_db)):
-    db_user = db.query(User).filter(User.email == user.email).first()
+    clean_email = user.email.strip().lower()
+    db_user = db.query(User).filter(func.lower(User.email) == clean_email).first()
 
     if not db_user:
         raise HTTPException(

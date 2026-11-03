@@ -25,7 +25,11 @@ function Login() {
     setErrorMsg("");
 
     try {
-      const response = await API.post("/auth/login", formData);
+      const payload = {
+        email: formData.email.trim().toLowerCase(),
+        password: formData.password,
+      };
+      const response = await API.post("/auth/login", payload);
 
       if (response.data.access_token) {
         localStorage.setItem("token", response.data.access_token);
@@ -36,10 +40,11 @@ function Login() {
 
       navigate("/dashboard");
     } catch (error) {
+      console.error("Login attempt failed:", error);
       const msg =
         error.response?.data?.detail ||
         (typeof error.response?.data === "string" ? error.response.data : null) ||
-        "Login failed. Please check your credentials.";
+        (error.message === "Network Error" ? "Unable to connect to backend server. Please check your network connection." : "Login failed. Please check your credentials.");
       setErrorMsg(msg);
     } finally {
       setLoading(false);

@@ -23,6 +23,7 @@ import com.alumniconnect.app.activities.OpportunityDetailsActivity;
 import com.alumniconnect.app.adapters.OpportunityAdapter;
 import com.alumniconnect.app.models.Opportunity;
 import com.alumniconnect.app.repositories.OpportunityRepository;
+import com.alumniconnect.app.utils.ApiErrorUtils;
 import com.alumniconnect.app.utils.SessionManager;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
@@ -92,13 +93,19 @@ public class OpportunitiesFragment extends Fragment {
         swipeRefresh.setColorSchemeResources(R.color.primary);
         swipeRefresh.setOnRefreshListener(() -> loadOpportunities(true));
 
+        // Restore search if active
+        if (activeSearch != null && !activeSearch.isEmpty()) {
+            etSearch.setText(activeSearch);
+        }
+
         // Search with debounce
         etSearch.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 if (debounceRunnable != null) debounceHandler.removeCallbacks(debounceRunnable);
                 debounceRunnable = () -> {
-                    activeSearch = s.toString().trim().isEmpty() ? null : s.toString().trim();
+                    String query = s.toString().trim();
+                    activeSearch = query.isEmpty() ? null : query;
                     loadOpportunities(false);
                 };
                 debounceHandler.postDelayed(debounceRunnable, DEBOUNCE_DELAY_MS);
@@ -146,6 +153,7 @@ public class OpportunitiesFragment extends Fragment {
         if ("admin".equals(role) || "alumni".equals(role)) {
             fabCreateOpp.setVisibility(View.VISIBLE);
             fabCreateOpp.setOnClickListener(v -> {
+                if (!isAdded()) return;
                 Intent intent = new Intent(requireContext(), CreateOpportunityActivity.class);
                 startActivity(intent);
             });
@@ -155,9 +163,12 @@ public class OpportunitiesFragment extends Fragment {
     }
 
     @Override
-    public void onResume() {
-        super.onResume();
-        loadOpportunities(false);
+    public void onDestroyView() {
+        super.onDestroyView();
+        if (debounceRunnable != null) {
+            debounceHandler.removeCallbacks(debounceRunnable);
+            debounceRunnable = null;
+        }
     }
 
     private void loadOpportunities(boolean fromSwipe) {
@@ -169,10 +180,11 @@ public class OpportunitiesFragment extends Fragment {
             tvResultCount.setText("");
         }
 
-        // Backend getOpportunities: filter by opportunity_type, search, location
         opportunityRepository.getOpportunities(activeType, activeSearch, null).enqueue(new Callback<List<Opportunity>>() {
             @Override
             public void onResponse(Call<List<Opportunity>> call, Response<List<Opportunity>> response) {
+                if (!isAdded()) return;
+
                 progressOpps.setVisibility(View.GONE);
                 swipeRefresh.setRefreshing(false);
 
@@ -184,8 +196,8 @@ public class OpportunitiesFragment extends Fragment {
                         rvOpportunities.setVisibility(View.GONE);
                         layoutEmpty.setVisibility(View.VISIBLE);
                         tvEmptyMsg.setText(hasActiveFilters()
-                                ? "No opportunities match your search/filters."
-                                : "No career opportunities available yet.");
+                                ? getString(R.string.empty_opportunities_filtered)
+                                : getString(R.string.empty_opportunities));
                         tvResultCount.setText("");
                     } else {
                         adapter.setOpportunityList(list);
@@ -193,18 +205,19 @@ public class OpportunitiesFragment extends Fragment {
                         layoutEmpty.setVisibility(View.GONE);
                         tvResultCount.setText(list.size() + " opportunities found");
                     }
-                } else if (response.code() == 401) {
-                    showError("Session expired. Please login again.");
                 } else {
-                    showError("Server error (HTTP " + response.code() + "). Pull to retry.");
+                    String errorMsg = ApiErrorUtils.getErrorMessage(response);
+                    showError(errorMsg);
                 }
             }
 
             @Override
             public void onFailure(Call<List<Opportunity>> call, Throwable t) {
+                if (!isAdded()) return;
                 progressOpps.setVisibility(View.GONE);
                 swipeRefresh.setRefreshing(false);
-                showError("Network unavailable. Check connection and retry.");
+                String errorMsg = ApiErrorUtils.getNetworkErrorMessage(t);
+                showError(errorMsg);
             }
         });
     }
@@ -223,6 +236,7 @@ public class OpportunitiesFragment extends Fragment {
     }
 
     private void openOpportunityDetails(Opportunity opp) {
+        if (!isAdded() || getContext() == null) return;
         Intent intent = new Intent(requireContext(), OpportunityDetailsActivity.class);
         intent.putExtra("opportunity_id", opp.getId());
         intent.putExtra("opportunity_title", opp.getTitle());

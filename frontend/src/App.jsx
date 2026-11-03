@@ -9,7 +9,13 @@ import Events from "./pages/Events";
 import Mentorship from "./pages/Mentorship";
 import Opportunities from "./pages/Opportunities";
 import Notifications from "./pages/Notifications";
+import SavedItems from "./pages/SavedItems";
 import AdminDashboard from "./pages/AdminDashboard";
+import MyNetwork from "./pages/MyNetwork";
+import SuccessStories from "./pages/SuccessStories";
+import Communities from "./pages/Communities";
+import CommunityDetails from "./pages/CommunityDetails";
+import AdminAlumniData from "./pages/AdminAlumniData";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -84,12 +90,82 @@ function App() {
         }
       />
 
+      <Route
+        path="/saved"
+        element={
+          <ProtectedRoute>
+            <SavedItems />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/network"
+        element={
+          <ProtectedRoute>
+            <MyNetwork />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/my-network"
+        element={
+          <ProtectedRoute>
+            <MyNetwork />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/stories"
+        element={
+          <ProtectedRoute>
+            <SuccessStories />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/communities"
+        element={
+          <ProtectedRoute>
+            <Communities />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/communities/:id"
+        element={
+          <ProtectedRoute>
+            <CommunityDetails />
+          </ProtectedRoute>
+        }
+      />
+
       {/* Protected Admin Portal */}
       <Route
         path="/admin"
         element={
           <ProtectedRoute allowedRoles={["admin"]}>
             <AdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/alumni-data"
+        element={
+          <ProtectedRoute allowedRoles={["admin"]}>
+            <AdminAlumniData />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/alumni"
+        element={
+          <ProtectedRoute allowedRoles={["admin"]}>
+            <AdminAlumniData />
           </ProtectedRoute>
         }
       />

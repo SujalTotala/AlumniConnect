@@ -20,6 +20,11 @@ android {
         debug {
             buildConfigField "String", "API_BASE_URL", "\"http://10.0.2.2:8000/\""
         }
+        review {
+            signingConfig signingConfigs.debug
+            matchingFallbacks = ['debug']
+            buildConfigField "String", "API_BASE_URL", "\"https://alumniconnect-bwoi.onrender.com/\""
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
@@ -48,6 +53,10 @@ dependencies {
     implementation 'androidx.coordinatorlayout:coordinatorlayout:1.2.0'
     implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
     implementation 'androidx.fragment:fragment:1.6.2'
+    implementation 'androidx.security:security-crypto:1.1.0-alpha06'
+
+    // ZXing Barcode & QR Scanner
+    implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
 
 
     // Retrofit & OkHttp

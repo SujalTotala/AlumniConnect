@@ -79,6 +79,22 @@
                     android:textSize="11sp" />
 
                 <com.google.android.material.chip.Chip
+                    android:id="@+id/chip_verified"
+                    style="@style/Widget.MaterialComponents.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="✓ Verified Only"
+                    android:textSize="11sp" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chip_more_filters"
+                    style="@style/Widget.MaterialComponents.Chip.Action"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="⚙ Company &amp; Role"
+                    android:textSize="11sp" />
+
+                <com.google.android.material.chip.Chip
                     android:id="@+id/chip_clear"
                     style="@style/Widget.MaterialComponents.Chip.Action"
                     android:layout_width="wrap_content"

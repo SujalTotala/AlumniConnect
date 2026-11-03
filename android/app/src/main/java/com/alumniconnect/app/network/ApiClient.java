@@ -2,7 +2,6 @@ package com.alumniconnect.app.network;
 
 import android.content.Context;
 import com.alumniconnect.app.BuildConfig;
-import com.alumniconnect.app.utils.Constants;
 import java.util.concurrent.TimeUnit;
 import okhttp3.OkHttpClient;
 import okhttp3.logging.HttpLoggingInterceptor;
@@ -13,8 +12,10 @@ public class ApiClient {
     private static Retrofit retrofit = null;
     private static ApiService apiService = null;
 
-    public static ApiService getApiService(Context context) {
+    public static synchronized ApiService getApiService(Context context) {
         if (apiService == null) {
+            Context appContext = context.getApplicationContext();
+
             HttpLoggingInterceptor loggingInterceptor = new HttpLoggingInterceptor();
             if (BuildConfig.DEBUG) {
                 loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BODY);
@@ -23,11 +24,11 @@ public class ApiClient {
             }
 
             OkHttpClient client = new OkHttpClient.Builder()
-                    .addInterceptor(new AuthInterceptor(context))
+                    .addInterceptor(new AuthInterceptor(appContext))
                     .addInterceptor(loggingInterceptor)
-                    .connectTimeout(30, TimeUnit.SECONDS)
-                    .readTimeout(30, TimeUnit.SECONDS)
-                    .writeTimeout(30, TimeUnit.SECONDS)
+                    .connectTimeout(60, TimeUnit.SECONDS)
+                    .readTimeout(60, TimeUnit.SECONDS)
+                    .writeTimeout(60, TimeUnit.SECONDS)
                     .build();
 
             retrofit = new Retrofit.Builder()

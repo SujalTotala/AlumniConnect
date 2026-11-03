@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const apiBase = env.VITE_API_BASE_URL || process.env.VITE_API_BASE_URL || (mode === 'production' ? 'https://alumniconnect-bwoi.onrender.com' : '')
+  const apiBase = env.VITE_API_BASE_URL || process.env.VITE_API_BASE_URL || ''
 
   return {
     plugins: [react(), tailwindcss()],

@@ -1,9 +1,22 @@
 import axios from "axios";
 
-// Require explicit API base URL in production, falling back to verified production backend
-const envBase = import.meta.env.VITE_API_BASE_URL || (import.meta.env.MODE === "production" ? "https://alumniconnect-bwoi.onrender.com" : "");
+// Runtime resolution of API Base URL:
+// 1. On Vercel deployments (*.vercel.app), use relative path ("") to route through Vercel's reverse proxy rewrites, completely bypassing browser CORS preflight.
+// 2. On localhost development, connect to local backend (http://127.0.0.1:8000) or VITE_API_BASE_URL.
+// 3. Otherwise, fall back to production Render backend.
+let API_BASE = "";
+if (typeof window !== "undefined" && window.location && window.location.hostname.includes("vercel.app")) {
+  API_BASE = "";
+} else if (import.meta.env.VITE_API_BASE_URL) {
+  API_BASE = import.meta.env.VITE_API_BASE_URL;
+} else if (typeof window !== "undefined" && window.location && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
+  API_BASE = "http://127.0.0.1:8000";
+} else {
+  API_BASE = "https://alumniconnect-bwoi.onrender.com";
+}
+
 const API = axios.create({
-  baseURL: envBase || "http://127.0.0.1:8000",
+  baseURL: API_BASE,
   headers: {
     "Content-Type": "application/json",
   },

@@ -13,10 +13,16 @@ import androidx.fragment.app.Fragment;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.alumniconnect.app.R;
 import com.alumniconnect.app.activities.MainActivity;
+import com.alumniconnect.app.activities.MyNetworkActivity;
 import com.alumniconnect.app.models.AdminStatistics;
+import com.alumniconnect.app.models.Event;
+import com.alumniconnect.app.models.ProfileResponse;
 import com.alumniconnect.app.repositories.AdminRepository;
+import com.alumniconnect.app.repositories.EventRepository;
+import com.alumniconnect.app.repositories.ProfileRepository;
+import com.alumniconnect.app.utils.ApiErrorUtils;
 import com.alumniconnect.app.utils.SessionManager;
-import com.alumniconnect.app.fragments.OpportunitiesFragment;
+import java.util.List;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -24,12 +30,19 @@ import retrofit2.Response;
 public class HomeFragment extends Fragment {
     private SessionManager sessionManager;
     private AdminRepository adminRepository;
+    private ProfileRepository profileRepository;
+    private EventRepository eventRepository;
+    private com.alumniconnect.app.repositories.AnnouncementRepository announcementRepository;
+
     private SwipeRefreshLayout swipeRefresh;
     private TextView tvWelcome, tvUserEmail, tvRoleBadge, tvHomeStatus;
+    private View cardAnnouncement;
+    private TextView tvAnnouncementTitle, tvAnnouncementContent;
     private LinearLayout layoutAdminStats, layoutQuickActions;
     private TextView tvTotalUsers, tvTotalAlumni, tvTotalEvents, tvActiveMentors,
             tvTotalOpportunities, tvPendingMentorship;
-    private View cardAlumni, cardMentorship, cardEvents, cardProfile, cardOpportunities;
+    private View cardAlumni, cardMentorship, cardEvents, cardProfile, cardOpportunities, cardMyNetwork;
+    private View cardCommunities, cardSuccessStories;
 
     @Nullable
     @Override
@@ -44,12 +57,18 @@ public class HomeFragment extends Fragment {
 
         sessionManager = new SessionManager(requireContext());
         adminRepository = new AdminRepository(requireContext());
+        profileRepository = new ProfileRepository(requireContext());
+        eventRepository = new EventRepository(requireContext());
+        announcementRepository = new com.alumniconnect.app.repositories.AnnouncementRepository(requireContext());
 
         swipeRefresh = view.findViewById(R.id.swipe_refresh);
         tvWelcome = view.findViewById(R.id.tv_welcome);
         tvUserEmail = view.findViewById(R.id.tv_user_email);
         tvRoleBadge = view.findViewById(R.id.tv_role_badge);
         tvHomeStatus = view.findViewById(R.id.tv_home_status);
+        cardAnnouncement = view.findViewById(R.id.card_announcement);
+        tvAnnouncementTitle = view.findViewById(R.id.tv_announcement_title);
+        tvAnnouncementContent = view.findViewById(R.id.tv_announcement_content);
         layoutAdminStats = view.findViewById(R.id.layout_admin_stats);
         layoutQuickActions = view.findViewById(R.id.layout_quick_actions);
         tvTotalUsers = view.findViewById(R.id.tv_total_users);
@@ -63,11 +82,14 @@ public class HomeFragment extends Fragment {
         cardEvents = view.findViewById(R.id.card_events);
         cardProfile = view.findViewById(R.id.card_profile);
         cardOpportunities = view.findViewById(R.id.card_opportunities);
+        cardMyNetwork = view.findViewById(R.id.card_my_network);
+        cardCommunities = view.findViewById(R.id.card_communities);
+        cardSuccessStories = view.findViewById(R.id.card_success_stories);
 
         // Populate session-based user info
         populateUserInfo();
 
-        // Navigation card clicks  → navigate to BottomNav tabs
+        // Navigation card clicks -> navigate to BottomNav tabs
         cardAlumni.setOnClickListener(v -> navigateToTab(R.id.nav_alumni));
         cardMentorship.setOnClickListener(v -> navigateToTab(R.id.nav_mentorship));
         cardEvents.setOnClickListener(v -> navigateToTab(R.id.nav_events));
@@ -75,21 +97,33 @@ public class HomeFragment extends Fragment {
         if (cardOpportunities != null) {
             cardOpportunities.setOnClickListener(v -> loadOpportunitiesFragment());
         }
+        if (cardMyNetwork != null) {
+            cardMyNetwork.setOnClickListener(v -> {
+                Intent intent = new Intent(requireContext(), MyNetworkActivity.class);
+                startActivity(intent);
+            });
+        }
+        if (cardCommunities != null) {
+            cardCommunities.setOnClickListener(v -> {
+                Intent intent = new Intent(requireContext(), com.alumniconnect.app.activities.CommunitiesActivity.class);
+                startActivity(intent);
+            });
+        }
+        if (cardSuccessStories != null) {
+            cardSuccessStories.setOnClickListener(v -> {
+                Intent intent = new Intent(requireContext(), com.alumniconnect.app.activities.SuccessStoriesActivity.class);
+                startActivity(intent);
+            });
+        }
 
         View cardAdminOpportunities = view.findViewById(R.id.card_admin_opportunities);
         if (cardAdminOpportunities != null) {
             cardAdminOpportunities.setOnClickListener(v -> loadOpportunitiesFragment());
         }
 
-        // SwipeRefreshLayout
+        // SwipeRefreshLayout works for ALL users
         swipeRefresh.setColorSchemeResources(R.color.primary);
-        swipeRefresh.setOnRefreshListener(() -> {
-            if ("admin".equalsIgnoreCase(sessionManager.getUserRole())) {
-                fetchAdminStats();
-            } else {
-                swipeRefresh.setRefreshing(false);
-            }
-        });
+        swipeRefresh.setOnRefreshListener(() -> refreshDashboardData());
 
         // Load role-specific content
         loadDashboard();
@@ -98,10 +132,7 @@ public class HomeFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        // Refresh on return
-        if ("admin".equalsIgnoreCase(sessionManager.getUserRole())) {
-            fetchAdminStats();
-        }
+        populateUserInfo();
     }
 
     private void populateUserInfo() {
@@ -115,13 +146,54 @@ public class HomeFragment extends Fragment {
     }
 
     private void loadDashboard() {
+        fetchAnnouncements();
         String role = sessionManager.getUserRole().toLowerCase();
         if ("admin".equals(role)) {
             layoutAdminStats.setVisibility(View.VISIBLE);
             fetchAdminStats();
         } else {
             layoutQuickActions.setVisibility(View.VISIBLE);
+            refreshUserData();
         }
+    }
+
+    private void refreshDashboardData() {
+        fetchAnnouncements();
+        String role = sessionManager.getUserRole().toLowerCase();
+        if ("admin".equals(role)) {
+            fetchAdminStats();
+        } else {
+            refreshUserData();
+        }
+    }
+
+    private void refreshUserData() {
+        // Sync user profile from server to refresh any name/role changes made on web
+        profileRepository.getMyProfile().enqueue(new Callback<ProfileResponse>() {
+            @Override
+            public void onResponse(Call<ProfileResponse> call, Response<ProfileResponse> response) {
+                if (!isAdded()) return;
+                swipeRefresh.setRefreshing(false);
+                if (response.isSuccessful() && response.body() != null) {
+                    ProfileResponse p = response.body();
+                    if (p.getName() != null) {
+                        com.alumniconnect.app.models.User u = new com.alumniconnect.app.models.User();
+                        u.setId(p.getId());
+                        u.setName(p.getName());
+                        u.setEmail(p.getEmail());
+                        u.setRole(p.getRole());
+                        sessionManager.saveSession(sessionManager.getToken(), u);
+                        populateUserInfo();
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Call<ProfileResponse> call, Throwable t) {
+                if (!isAdded()) return;
+                swipeRefresh.setRefreshing(false);
+            }
+        });
     }
 
     private void fetchAdminStats() {
@@ -129,6 +201,7 @@ public class HomeFragment extends Fragment {
         adminRepository.getStatistics().enqueue(new Callback<AdminStatistics>() {
             @Override
             public void onResponse(Call<AdminStatistics> call, Response<AdminStatistics> response) {
+                if (!isAdded()) return;
                 swipeRefresh.setRefreshing(false);
                 if (response.isSuccessful() && response.body() != null) {
                     AdminStatistics stats = response.body();
@@ -139,17 +212,18 @@ public class HomeFragment extends Fragment {
                     if (tvActiveMentors != null) tvActiveMentors.setText(String.valueOf(stats.getActiveMentors()));
                     if (tvTotalOpportunities != null) tvTotalOpportunities.setText(String.valueOf(stats.getTotalOpportunities()));
                     if (tvPendingMentorship != null) tvPendingMentorship.setText(String.valueOf(stats.getPendingMentorshipRequests()));
-                } else if (response.code() == 401 || response.code() == 403) {
-                    showStatus("Access restricted. Please login again.");
                 } else {
-                    showStatus("Unable to load statistics (HTTP " + response.code() + ")");
+                    String error = ApiErrorUtils.getErrorMessage(response);
+                    showStatus(error);
                 }
             }
 
             @Override
             public void onFailure(Call<AdminStatistics> call, Throwable t) {
+                if (!isAdded()) return;
                 swipeRefresh.setRefreshing(false);
-                showStatus("Network error. Pull down to retry.");
+                String error = ApiErrorUtils.getNetworkErrorMessage(t);
+                showStatus(error);
             }
         });
     }
@@ -175,5 +249,26 @@ public class HomeFragment extends Fragment {
         if (getActivity() instanceof MainActivity) {
             ((MainActivity) getActivity()).loadFragment(new OpportunitiesFragment());
         }
+    }
+
+    private void fetchAnnouncements() {
+        announcementRepository.getActiveAnnouncements().enqueue(new Callback<List<com.alumniconnect.app.models.Announcement>>() {
+            @Override
+            public void onResponse(Call<List<com.alumniconnect.app.models.Announcement>> call, Response<List<com.alumniconnect.app.models.Announcement>> response) {
+                if (isAdded() && response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
+                    com.alumniconnect.app.models.Announcement top = response.body().get(0);
+                    tvAnnouncementTitle.setText(top.getTitle());
+                    tvAnnouncementContent.setText(top.getContent());
+                    cardAnnouncement.setVisibility(View.VISIBLE);
+                } else if (isAdded()) {
+                    cardAnnouncement.setVisibility(View.GONE);
+                }
+            }
+
+            @Override
+            public void onFailure(Call<List<com.alumniconnect.app.models.Announcement>> call, Throwable t) {
+                if (isAdded()) cardAnnouncement.setVisibility(View.GONE);
+            }
+        });
     }
 }

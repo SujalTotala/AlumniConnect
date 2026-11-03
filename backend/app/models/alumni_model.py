@@ -25,5 +25,6 @@ class Alumni(Base):
     linkedin_url = Column(String, nullable=True)
     github_url = Column(String, nullable=True)
     mentorship_available = Column(Boolean, default=False)
+    is_verified = Column(Boolean, default=False, nullable=False)
     
     created_at = Column(DateTime, default=datetime.utcnow)

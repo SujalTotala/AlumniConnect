@@ -1,13 +1,26 @@
 import { useEffect, useState } from "react";
 import DashboardLayout from "../layouts/DashboardLayout";
 import { alumniApi } from "../api/alumniApi";
+import { bookmarkApi } from "../api/bookmarkApi";
+import { connectionApi } from "../api/connectionApi";
 
 const Alumni = () => {
   const [alumni, setAlumni] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [connectionsMap, setConnectionsMap] = useState({});
+  const [connectingUserId, setConnectingUserId] = useState(null);
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState("");
   const [mentorFilter, setMentorFilter] = useState(false);
+  const [verifiedFilter, setVerifiedFilter] = useState(false);
+  const [gradYearFilter, setGradYearFilter] = useState("");
+  const [companyFilter, setCompanyFilter] = useState("");
+  const [jobRoleFilter, setJobRoleFilter] = useState("");
+  const [locationFilter, setLocationFilter] = useState("");
+  const [skillsFilter, setSkillsFilter] = useState("");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+
+  const [savedAlumniIds, setSavedAlumniIds] = useState(new Set());
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedAlumni, setSelectedAlumni] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
@@ -37,6 +50,16 @@ const Alumni = () => {
     mentorship_available: false,
   });
 
+  const fetchBookmarks = async () => {
+    try {
+      const res = await bookmarkApi.getBookmarks("alumni");
+      const ids = new Set((res.data || []).map((b) => b.item_id));
+      setSavedAlumniIds(ids);
+    } catch (err) {
+      console.error("Failed to load saved alumni bookmarks:", err);
+    }
+  };
+
   const fetchAlumni = async () => {
     setLoading(true);
     try {
@@ -44,6 +67,12 @@ const Alumni = () => {
       if (search) params.search = search;
       if (deptFilter) params.department = deptFilter;
       if (mentorFilter) params.mentorship_available = true;
+      if (verifiedFilter) params.is_verified = true;
+      if (gradYearFilter) params.graduation_year = gradYearFilter;
+      if (companyFilter) params.company = companyFilter;
+      if (jobRoleFilter) params.job_role = jobRoleFilter;
+      if (locationFilter) params.location = locationFilter;
+      if (skillsFilter) params.skills = skillsFilter;
 
       const response = await alumniApi.getAlumni(params);
       setAlumni(response.data);
@@ -55,13 +84,110 @@ const Alumni = () => {
     }
   };
 
+  const fetchConnections = async () => {
+    if (!currentUser?.id) return;
+    try {
+      const [netRes, sentRes, recRes] = await Promise.all([
+        connectionApi.getMyNetwork(),
+        connectionApi.getSentRequests(),
+        connectionApi.getReceivedRequests(),
+      ]);
+      const map = {};
+      (netRes.data || []).forEach((c) => {
+        const otherId = c.sender_id === currentUser.id ? c.receiver_id : c.sender_id;
+        map[otherId] = { status: "CONNECTED", connection_id: c.id };
+      });
+      (sentRes.data || []).forEach((c) => {
+        map[c.receiver_id] = { status: "PENDING_SENT", connection_id: c.id };
+      });
+      (recRes.data || []).forEach((c) => {
+        map[c.sender_id] = { status: "PENDING_RECEIVED", connection_id: c.id };
+      });
+      setConnectionsMap(map);
+    } catch (err) {
+      console.error("Failed to load connection statuses:", err);
+    }
+  };
+
+  const handleConnect = async (e, targetUserId) => {
+    e.stopPropagation();
+    if (!targetUserId) {
+      setErrorMsg("This alumni member account is not currently linked to an active user profile.");
+      return;
+    }
+    setConnectingUserId(targetUserId);
+    try {
+      const res = await connectionApi.sendRequest(targetUserId);
+      setConnectionsMap((prev) => ({
+        ...prev,
+        [targetUserId]: { status: "PENDING_SENT", connection_id: res.data?.id }
+      }));
+      setSuccessMsg("Connection request sent successfully!");
+    } catch (err) {
+      setErrorMsg(err.response?.data?.detail || "Failed to send connection request.");
+    } finally {
+      setConnectingUserId(null);
+    }
+  };
+
+  const handleAcceptConnect = async (e, connectionId, targetUserId) => {
+    e.stopPropagation();
+    try {
+      await connectionApi.acceptRequest(connectionId);
+      setConnectionsMap((prev) => ({
+        ...prev,
+        [targetUserId]: { status: "CONNECTED", connection_id: connectionId }
+      }));
+      setSuccessMsg("Connection accepted! User added to your network.");
+    } catch (err) {
+      setErrorMsg(err.response?.data?.detail || "Failed to accept connection.");
+    }
+  };
+
   useEffect(() => {
     fetchAlumni();
-  }, [deptFilter, mentorFilter]);
+    fetchBookmarks();
+    fetchConnections();
+  }, [deptFilter, mentorFilter, verifiedFilter, gradYearFilter]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     fetchAlumni();
+  };
+
+  const handleResetFilters = () => {
+    setSearch("");
+    setDeptFilter("");
+    setMentorFilter(false);
+    setVerifiedFilter(false);
+    setGradYearFilter("");
+    setCompanyFilter("");
+    setJobRoleFilter("");
+    setLocationFilter("");
+    setSkillsFilter("");
+    // Re-fetch default list
+    setTimeout(() => fetchAlumni(), 50);
+  };
+
+  const handleToggleBookmark = async (e, alumniItem) => {
+    e.stopPropagation();
+    const isSaved = savedAlumniIds.has(alumniItem.id);
+    try {
+      if (isSaved) {
+        await bookmarkApi.deleteBookmarkByItem("alumni", alumniItem.id);
+        setSavedAlumniIds((prev) => {
+          const next = new Set(prev);
+          next.delete(alumniItem.id);
+          return next;
+        });
+      } else {
+        await bookmarkApi.createBookmark("alumni", alumniItem.id);
+        setSavedAlumniIds((prev) => new Set(prev).add(alumniItem.id));
+      }
+    } catch (err) {
+      console.error("Failed to update bookmark:", err);
+      setErrorMsg("Failed to update bookmark status.");
+    }
   };
 
   const handleChange = (e) => {
@@ -151,48 +277,143 @@ const Alumni = () => {
         )}
 
         {/* Search & Filters */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center">
-          <form onSubmit={handleSearchSubmit} className="relative flex-1 w-full">
-            <input
-              type="text"
-              placeholder="Search by name, company, job title, skills, or location..."
-              className="w-full pl-11 pr-24 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <span className="absolute left-3.5 top-2.5 text-base text-slate-400">🔍</span>
-            <button
-              type="submit"
-              className="absolute right-1.5 top-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold"
-            >
-              Search
-            </button>
-          </form>
-
-          <div className="flex items-center gap-3 w-full md:w-auto">
-            <select
-              value={deptFilter}
-              onChange={(e) => setDeptFilter(e.target.value)}
-              className="border border-slate-300 bg-slate-50 p-2.5 rounded-xl text-xs font-medium text-slate-700 focus:outline-none"
-            >
-              <option value="">All Departments</option>
-              <option value="Computer">Computer Science</option>
-              <option value="Information">Information Tech</option>
-              <option value="Mechanical">Mechanical</option>
-              <option value="Electrical">Electrical</option>
-              <option value="Business">Business / Management</option>
-            </select>
-
-            <label className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer bg-slate-50 p-2.5 px-3 rounded-xl border border-slate-300">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+          <div className="flex flex-col md:flex-row gap-3 justify-between items-center">
+            <form onSubmit={handleSearchSubmit} className="relative flex-1 w-full">
               <input
-                type="checkbox"
-                checked={mentorFilter}
-                onChange={(e) => setMentorFilter(e.target.checked)}
-                className="w-4 h-4 text-blue-600 rounded"
+                type="text"
+                placeholder="Search by name, company, job title, skills, or location..."
+                className="w-full pl-11 pr-24 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
               />
-              <span>Mentors Only</span>
-            </label>
+              <span className="absolute left-3.5 top-2.5 text-base text-slate-400">🔍</span>
+              <button
+                type="submit"
+                className="absolute right-1.5 top-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold"
+              >
+                Search
+              </button>
+            </form>
+
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <select
+                value={deptFilter}
+                onChange={(e) => setDeptFilter(e.target.value)}
+                className="border border-slate-300 bg-slate-50 p-2.5 rounded-xl text-xs font-medium text-slate-700 focus:outline-none"
+              >
+                <option value="">All Departments</option>
+                <option value="Computer Science">Computer Science</option>
+                <option value="Information Technology">Information Technology</option>
+                <option value="Mechanical Engineering">Mechanical Engineering</option>
+                <option value="Electrical Engineering">Electrical Engineering</option>
+                <option value="Civil Engineering">Civil Engineering</option>
+                <option value="Business Administration">Business Administration</option>
+              </select>
+
+              <label className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer bg-slate-50 p-2.5 px-3 rounded-xl border border-slate-300">
+                <input
+                  type="checkbox"
+                  checked={mentorFilter}
+                  onChange={(e) => setMentorFilter(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 rounded"
+                />
+                <span>Mentors</span>
+              </label>
+
+              <label className="flex items-center gap-2 text-xs font-medium text-blue-700 cursor-pointer bg-blue-50 p-2.5 px-3 rounded-xl border border-blue-200">
+                <input
+                  type="checkbox"
+                  checked={verifiedFilter}
+                  onChange={(e) => setVerifiedFilter(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 rounded"
+                />
+                <span>✓ Verified</span>
+              </label>
+
+              <button
+                type="button"
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className="p-2.5 px-3 rounded-xl border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-100 flex items-center gap-1.5"
+              >
+                <span>⚙️ Filters</span>
+                <span>{showAdvancedFilters ? "▲" : "▼"}</span>
+              </button>
+            </div>
           </div>
+
+          {/* Advanced Filter Row (Collapsible) */}
+          {showAdvancedFilters && (
+            <div className="pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1">Graduation Year</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 2022"
+                  value={gradYearFilter}
+                  onChange={(e) => setGradYearFilter(e.target.value)}
+                  className="w-full border border-slate-200 bg-slate-50 p-2 rounded-lg text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1">Company</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Google"
+                  value={companyFilter}
+                  onChange={(e) => setCompanyFilter(e.target.value)}
+                  className="w-full border border-slate-200 bg-slate-50 p-2 rounded-lg text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1">Job Role</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Frontend"
+                  value={jobRoleFilter}
+                  onChange={(e) => setJobRoleFilter(e.target.value)}
+                  className="w-full border border-slate-200 bg-slate-50 p-2 rounded-lg text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1">Location</label>
+                <input
+                  type="text"
+                  placeholder="e.g. New York"
+                  value={locationFilter}
+                  onChange={(e) => setLocationFilter(e.target.value)}
+                  className="w-full border border-slate-200 bg-slate-50 p-2 rounded-lg text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 mb-1">Skills</label>
+                <input
+                  type="text"
+                  placeholder="e.g. React, Python"
+                  value={skillsFilter}
+                  onChange={(e) => setSkillsFilter(e.target.value)}
+                  className="w-full border border-slate-200 bg-slate-50 p-2 rounded-lg text-xs"
+                />
+              </div>
+
+              <div className="sm:col-span-2 lg:col-span-5 flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="text-xs text-slate-500 hover:text-slate-800 font-medium px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100"
+                >
+                  Reset All Filters
+                </button>
+                <button
+                  type="button"
+                  onClick={fetchAlumni}
+                  className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-1.5 rounded-lg shadow-sm"
+                >
+                  Apply Filters
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Directory Cards */}
@@ -206,68 +427,136 @@ const Alumni = () => {
             <div className="text-4xl mb-3">👥</div>
             <h3 className="text-lg font-bold text-slate-800">No Alumni Records Found</h3>
             <p className="text-xs text-slate-500 mt-1">Try resetting your filters or search keywords.</p>
+            <button
+              onClick={handleResetFilters}
+              className="mt-4 px-4 py-2 bg-blue-50 text-blue-600 font-semibold text-xs rounded-xl hover:bg-blue-100 transition"
+            >
+              Reset Filters
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {alumni.map((item) => (
-              <div
-                key={item.id}
-                className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-2 mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-lg">
-                        {item.name ? item.name.charAt(0).toUpperCase() : "A"}
+            {alumni.map((item) => {
+              const isSaved = savedAlumniIds.has(item.id);
+              return (
+                <div
+                  key={item.id}
+                  className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-lg">
+                          {item.name ? item.name.charAt(0).toUpperCase() : "A"}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <h2 className="text-lg font-bold text-slate-900 leading-tight">{item.name}</h2>
+                            {item.is_verified && (
+                              <span
+                                className="text-blue-600 bg-blue-50 border border-blue-200 text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5"
+                                title="Verified Alumni"
+                              >
+                                ✓
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-blue-700 font-semibold">{item.job_role || "Alumni Member"}</p>
+                        </div>
                       </div>
-                      <div>
-                        <h2 className="text-lg font-bold text-slate-900 leading-tight">{item.name}</h2>
-                        <p className="text-xs text-blue-700 font-semibold">{item.job_role || "Alumni Member"}</p>
+
+                      <div className="flex items-center gap-1.5">
+                        {item.mentorship_available && (
+                          <span className="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-200">
+                            Mentor
+                          </span>
+                        )}
+                        <button
+                          onClick={(e) => handleToggleBookmark(e, item)}
+                          className={`p-1.5 rounded-lg border text-sm transition ${
+                            isSaved
+                              ? "bg-amber-50 text-amber-500 border-amber-200"
+                              : "text-slate-400 border-slate-200 hover:text-amber-500 hover:bg-slate-50"
+                          }`}
+                          title={isSaved ? "Remove from saved" : "Save alumni profile"}
+                          aria-label={isSaved ? "Saved" : "Save"}
+                        >
+                          {isSaved ? "★" : "☆"}
+                        </button>
                       </div>
                     </div>
-                    {item.mentorship_available && (
-                      <span className="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-200">
-                        Mentor
-                      </span>
+
+                    <div className="space-y-1 text-xs text-slate-600 my-3">
+                      {item.company && <p>🏢 <strong className="text-slate-800">{item.company}</strong></p>}
+                      {item.department && <p>🎓 {item.department}</p>}
+                      {item.graduation_year && <p>📅 Class of {item.graduation_year}</p>}
+                      {item.location && <p>📍 {item.location}</p>}
+                    </div>
+
+                    {item.skills && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {item.skills.split(",").slice(0, 3).map((s, idx) => (
+                          <span key={idx} className="bg-slate-100 text-slate-700 text-[10px] px-2 py-0.5 rounded-md">
+                            {s.trim()}
+                          </span>
+                        ))}
+                      </div>
                     )}
                   </div>
 
-                  <div className="space-y-1 text-xs text-slate-600 my-3">
-                    {item.company && <p>🏢 <strong className="text-slate-800">{item.company}</strong></p>}
-                    {item.department && <p>🎓 {item.department}</p>}
-                    {item.graduation_year && <p>📅 Class of {item.graduation_year}</p>}
-                    {item.location && <p>📍 {item.location}</p>}
-                  </div>
-
-                  {item.skills && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {item.skills.split(",").slice(0, 3).map((s, idx) => (
-                        <span key={idx} className="bg-slate-100 text-slate-700 text-[10px] px-2 py-0.5 rounded-md">
-                          {s.trim()}
-                        </span>
-                      ))}
+                  <div className="pt-4 mt-4 border-t border-slate-100 flex flex-wrap justify-between items-center gap-2">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setSelectedAlumni(item)}
+                        className="text-xs text-blue-700 hover:text-blue-900 font-semibold"
+                      >
+                        View Details →
+                      </button>
+                      {(isAdmin || currentUser?.email === item.email) && (
+                        <button
+                          onClick={() => handleDeleteAlumni(item.id)}
+                          className="text-xs text-red-500 hover:text-red-700 font-medium"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
-                  )}
-                </div>
 
-                <div className="pt-4 mt-4 border-t border-slate-100 flex justify-between items-center">
-                  <button
-                    onClick={() => setSelectedAlumni(item)}
-                    className="text-xs text-blue-700 hover:text-blue-900 font-semibold"
-                  >
-                    View Details →
-                  </button>
-                  {(isAdmin || currentUser?.email === item.email) && (
-                    <button
-                      onClick={() => handleDeleteAlumni(item.id)}
-                      className="text-xs text-red-500 hover:text-red-700 font-medium"
-                    >
-                      Delete
-                    </button>
-                  )}
+                    {item.user_id && item.user_id !== currentUser?.id && currentUser?.email !== item.email && (
+                      <div className="flex items-center">
+                        {connectionsMap[item.user_id]?.status === "CONNECTED" && (
+                          <span className="bg-emerald-50 text-emerald-700 text-[11px] font-bold px-2.5 py-1 rounded-xl border border-emerald-200">
+                            Connected ✓
+                          </span>
+                        )}
+                        {connectionsMap[item.user_id]?.status === "PENDING_SENT" && (
+                          <span className="bg-amber-50 text-amber-700 text-[11px] font-bold px-2.5 py-1 rounded-xl border border-amber-200">
+                            Pending ⏳
+                          </span>
+                        )}
+                        {connectionsMap[item.user_id]?.status === "PENDING_RECEIVED" && (
+                          <button
+                            onClick={(e) => handleAcceptConnect(e, connectionsMap[item.user_id].connection_id, item.user_id)}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold px-2.5 py-1 rounded-xl shadow-xs"
+                          >
+                            Accept
+                          </button>
+                        )}
+                        {!connectionsMap[item.user_id] && (
+                          <button
+                            disabled={connectingUserId === item.user_id}
+                            onClick={(e) => handleConnect(e, item.user_id)}
+                            className="bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold px-2.5 py-1 rounded-xl shadow-xs transition"
+                          >
+                            {connectingUserId === item.user_id ? "..." : "+ Connect"}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -287,7 +576,14 @@ const Alumni = () => {
                   {selectedAlumni.name.charAt(0)}
                 </div>
                 <div>
-                  <h3 className="text-2xl font-bold text-slate-900">{selectedAlumni.name}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-2xl font-bold text-slate-900">{selectedAlumni.name}</h3>
+                    {selectedAlumni.is_verified && (
+                      <span className="bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold px-2 py-0.5 rounded-md flex items-center gap-1">
+                        ✓ Verified
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-blue-700 font-semibold">{selectedAlumni.job_role || "Alumni"}</p>
                   <p className="text-xs text-slate-500">{selectedAlumni.email}</p>
                 </div>
@@ -339,26 +635,60 @@ const Alumni = () => {
                   </div>
                 )}
 
-                <div className="flex gap-4 pt-4 border-t border-slate-100">
-                  {selectedAlumni.linkedin_url && (
-                    <a
-                      href={selectedAlumni.linkedin_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-xs text-blue-700 font-semibold hover:underline"
-                    >
-                      🔗 LinkedIn Profile
-                    </a>
-                  )}
-                  {selectedAlumni.github_url && (
-                    <a
-                      href={selectedAlumni.github_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-xs text-slate-800 font-semibold hover:underline"
-                    >
-                      🐙 GitHub Profile
-                    </a>
+                <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-100">
+                  <div className="flex gap-4">
+                    {selectedAlumni.linkedin_url && (
+                      <a
+                        href={selectedAlumni.linkedin_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-blue-700 font-semibold hover:underline"
+                      >
+                        🔗 LinkedIn Profile
+                      </a>
+                    )}
+                    {selectedAlumni.github_url && (
+                      <a
+                        href={selectedAlumni.github_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-slate-800 font-semibold hover:underline"
+                      >
+                        🐙 GitHub Profile
+                      </a>
+                    )}
+                  </div>
+
+                  {selectedAlumni.user_id && selectedAlumni.user_id !== currentUser?.id && currentUser?.email !== selectedAlumni.email && (
+                    <div>
+                      {connectionsMap[selectedAlumni.user_id]?.status === "CONNECTED" && (
+                        <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-3 py-1.5 rounded-xl border border-emerald-200">
+                          Connected ✓
+                        </span>
+                      )}
+                      {connectionsMap[selectedAlumni.user_id]?.status === "PENDING_SENT" && (
+                        <span className="bg-amber-50 text-amber-700 text-xs font-bold px-3 py-1.5 rounded-xl border border-amber-200">
+                          Request Sent ⏳
+                        </span>
+                      )}
+                      {connectionsMap[selectedAlumni.user_id]?.status === "PENDING_RECEIVED" && (
+                        <button
+                          onClick={(e) => handleAcceptConnect(e, connectionsMap[selectedAlumni.user_id].connection_id, selectedAlumni.user_id)}
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl shadow-sm"
+                        >
+                          Accept Request
+                        </button>
+                      )}
+                      {!connectionsMap[selectedAlumni.user_id] && (
+                        <button
+                          disabled={connectingUserId === selectedAlumni.user_id}
+                          onClick={(e) => handleConnect(e, selectedAlumni.user_id)}
+                          className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl shadow-sm transition"
+                        >
+                          {connectingUserId === selectedAlumni.user_id ? "Connecting..." : "+ Connect"}
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

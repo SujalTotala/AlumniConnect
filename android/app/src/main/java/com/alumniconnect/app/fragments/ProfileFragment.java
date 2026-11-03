@@ -14,23 +14,43 @@ import androidx.fragment.app.Fragment;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.alumniconnect.app.R;
 import com.alumniconnect.app.activities.EditProfileActivity;
+import com.alumniconnect.app.activities.MainActivity;
+import com.alumniconnect.app.activities.SavedItemsActivity;
+import com.alumniconnect.app.models.NotificationPreferences;
+import com.alumniconnect.app.models.ProfileCompletion;
 import com.alumniconnect.app.models.ProfileResponse;
+import com.alumniconnect.app.repositories.PreferenceRepository;
 import com.alumniconnect.app.repositories.ProfileRepository;
+import com.alumniconnect.app.utils.ApiErrorUtils;
 import com.alumniconnect.app.utils.SessionManager;
+import com.alumniconnect.app.utils.UrlUtils;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.progressindicator.LinearProgressIndicator;
+import android.widget.Toast;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
 public class ProfileFragment extends Fragment {
     private ProfileRepository profileRepository;
+    private PreferenceRepository preferenceRepository;
     private SessionManager sessionManager;
     private SwipeRefreshLayout swipeRefresh;
     private ProgressBar progressProfile;
     private TextView tvProfileError, tvProfileInitial, tvProfileName, tvProfileEmail;
     private TextView tvProfileRoleBadge;
     private LinearLayout layoutProfileFields;
-    private View btnEditProfile;
+    private View btnEditProfile, btnProfileAbout, btnSavedItems, btnNotificationPrefs;
     private ProfileResponse currentProfile;
+    private com.alumniconnect.app.repositories.AchievementRepository achievementRepository;
+    private com.alumniconnect.app.adapters.AchievementsAdapter achievementsAdapter;
+    private androidx.recyclerview.widget.RecyclerView rvAchievements;
+    private TextView tvEmptyAchievements;
+    private View btnAddAchievement;
+
+    // Completion UI
+    private TextView tvCompletionPercentage, tvCompletionHint;
+    private LinearProgressIndicator progressProfileCompletion;
 
     @Nullable
     @Override
@@ -44,6 +64,7 @@ public class ProfileFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
 
         profileRepository = new ProfileRepository(requireContext());
+        preferenceRepository = new PreferenceRepository(requireContext());
         sessionManager = new SessionManager(requireContext());
 
         swipeRefresh = view.findViewById(R.id.swipe_refresh_profile);
@@ -55,19 +76,60 @@ public class ProfileFragment extends Fragment {
         tvProfileRoleBadge = view.findViewById(R.id.tv_profile_role_badge);
         layoutProfileFields = view.findViewById(R.id.layout_profile_fields);
         btnEditProfile = view.findViewById(R.id.btn_edit_profile);
+        btnProfileAbout = view.findViewById(R.id.btn_profile_about);
+        btnSavedItems = view.findViewById(R.id.btn_saved_items);
+        btnNotificationPrefs = view.findViewById(R.id.btn_notification_prefs);
+
+        tvCompletionPercentage = view.findViewById(R.id.tv_completion_percentage);
+        tvCompletionHint = view.findViewById(R.id.tv_completion_hint);
+        progressProfileCompletion = view.findViewById(R.id.progress_profile_completion);
 
         swipeRefresh.setColorSchemeResources(R.color.primary);
         swipeRefresh.setOnRefreshListener(() -> loadProfile(true));
 
         btnEditProfile.setOnClickListener(v -> openEditProfile());
 
+        if (btnSavedItems != null) {
+            btnSavedItems.setOnClickListener(v -> {
+                Intent intent = new Intent(requireContext(), SavedItemsActivity.class);
+                startActivity(intent);
+            });
+        }
+
+        if (btnNotificationPrefs != null) {
+            btnNotificationPrefs.setOnClickListener(v -> showNotificationPreferencesDialog());
+        }
+
+        if (btnProfileAbout != null) {
+            btnProfileAbout.setOnClickListener(v -> {
+                if (getActivity() instanceof MainActivity) {
+                    ((MainActivity) getActivity()).showAboutDialog();
+                }
+            });
+        }
+
+        achievementRepository = new com.alumniconnect.app.repositories.AchievementRepository(requireContext());
+        rvAchievements = view.findViewById(R.id.rv_profile_achievements);
+        tvEmptyAchievements = view.findViewById(R.id.tv_empty_achievements);
+        btnAddAchievement = view.findViewById(R.id.btn_add_achievement);
+
+        if (rvAchievements != null) {
+            achievementsAdapter = new com.alumniconnect.app.adapters.AchievementsAdapter();
+            rvAchievements.setLayoutManager(new androidx.recyclerview.widget.LinearLayoutManager(requireContext()));
+            rvAchievements.setAdapter(achievementsAdapter);
+        }
+
+        if (btnAddAchievement != null) {
+            btnAddAchievement.setOnClickListener(v -> showAddAchievementDialog());
+        }
+
         loadProfile(false);
+        loadAchievements();
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        // Refresh on return from EditProfileActivity
         loadProfile(false);
     }
 
@@ -80,6 +142,8 @@ public class ProfileFragment extends Fragment {
         profileRepository.getMyProfile().enqueue(new Callback<ProfileResponse>() {
             @Override
             public void onResponse(Call<ProfileResponse> call, Response<ProfileResponse> response) {
+                if (!isAdded()) return;
+
                 progressProfile.setVisibility(View.GONE);
                 swipeRefresh.setRefreshing(false);
 
@@ -92,64 +156,110 @@ public class ProfileFragment extends Fragment {
                         sessionManager.saveSession(sessionManager.getToken(),
                                 buildUserFromProfile(currentProfile));
                     }
-                } else if (response.code() == 401) {
-                    showError("Session expired. Please login again.");
                 } else {
-                    showError("Failed to load profile (HTTP " + response.code() + "). Pull to retry.");
+                    String error = ApiErrorUtils.getErrorMessage(response);
+                    showError(error);
                 }
             }
 
             @Override
             public void onFailure(Call<ProfileResponse> call, Throwable t) {
+                if (!isAdded()) return;
                 progressProfile.setVisibility(View.GONE);
                 swipeRefresh.setRefreshing(false);
-                showError("Network error. Pull down to retry.");
+                String error = ApiErrorUtils.getNetworkErrorMessage(t);
+                showError(error);
             }
         });
     }
 
     private void renderProfile(ProfileResponse profile) {
-        String name = profile.getName() != null ? profile.getName() : "Member";
-        String email = profile.getEmail() != null ? profile.getEmail() : "";
-        String role = profile.getRole() != null ? profile.getRole() : "student";
+        String name = profile.getName() != null ? profile.getName().trim() : "Member";
+        String email = profile.getEmail() != null ? profile.getEmail().trim() : "";
+        String role = profile.getRole() != null ? profile.getRole().trim() : "student";
 
         if (!name.isEmpty()) {
             tvProfileInitial.setText(String.valueOf(name.charAt(0)).toUpperCase());
         }
         tvProfileName.setText(name);
-        tvProfileEmail.setText(email);
+        tvUserField(tvProfileEmail, email);
         tvProfileRoleBadge.setText(role.toUpperCase());
 
         // Build dynamic profile field rows
         layoutProfileFields.removeAllViews();
 
+        int totalFields = 0;
+        int filledFields = 0;
+
         if ("alumni".equalsIgnoreCase(role)) {
-            addProfileField("Company", profile.getProfileString("company"));
-            addProfileField("Job Role", profile.getProfileString("job_role"));
-            addProfileField("Department", profile.getProfileString("department"));
-            addProfileField("Graduation Year", profile.getProfileString("graduation_year"));
-            addProfileField("Location", profile.getProfileString("location"));
-            addProfileField("Skills", profile.getProfileString("skills"));
-            addProfileField("Bio", profile.getProfileString("bio"));
-            addProfileField("LinkedIn", profile.getProfileString("linkedin_url"));
-            addProfileField("GitHub", profile.getProfileString("github_url"));
+            totalFields = 10;
+            filledFields += checkAndAddField("Company", profile.getProfileString("company"));
+            filledFields += checkAndAddField("Job Role", profile.getProfileString("job_role"));
+            filledFields += checkAndAddField("Department", profile.getProfileString("department"));
+            filledFields += checkAndAddField("Graduation Year", profile.getProfileString("graduation_year"));
+            filledFields += checkAndAddField("Location", profile.getProfileString("location"));
+            filledFields += checkAndAddField("Skills", profile.getProfileString("skills"));
+            filledFields += checkAndAddField("Bio", profile.getProfileString("bio"));
+            filledFields += checkAndAddLinkField("LinkedIn Profile", profile.getProfileString("linkedin_url"));
+            filledFields += checkAndAddLinkField("GitHub Profile", profile.getProfileString("github_url"));
+
             boolean mentoring = profile.getProfileBoolean("mentorship_available");
-            addProfileField("Available for Mentorship", mentoring ? "Yes ✓" : "No");
+            addProfileField("Available for Mentorship", mentoring ? "Yes, available to mentor students ✓" : "Not available at this time", null);
+            filledFields++; // mentoring choice exists
         } else if ("student".equalsIgnoreCase(role)) {
-            addProfileField("Branch / Program", profile.getProfileString("branch"));
-            addProfileField("Academic Year", profile.getProfileString("year"));
-            addProfileField("Skills", profile.getProfileString("skills"));
-            addProfileField("Career Interests", profile.getProfileString("interests"));
-            addProfileField("Bio", profile.getProfileString("bio"));
+            totalFields = 6;
+            filledFields += checkAndAddField("Branch / Program", profile.getProfileString("branch"));
+            filledFields += checkAndAddField("Academic Year", profile.getProfileString("year"));
+            filledFields += checkAndAddField("Skills", profile.getProfileString("skills"));
+            filledFields += checkAndAddField("Career Interests", profile.getProfileString("interests"));
+            filledFields += checkAndAddField("Bio", profile.getProfileString("bio"));
+            if (profile.getName() != null && !profile.getName().trim().isEmpty()) filledFields++;
         } else {
-            addProfileField("Account Type", "Administrator");
-            addProfileField("Name", name);
-            addProfileField("Email", email);
+            addProfileField("Account Type", "Administrator", null);
+            addProfileField("Name", name, null);
+            addProfileField("Email", email, null);
+            totalFields = 3;
+            filledFields = 3;
+        }
+
+        // Calculate and display percentage
+        if (totalFields > 0) {
+            int percentage = Math.min(100, Math.round((filledFields / (float) totalFields) * 100));
+            if (tvCompletionPercentage != null) {
+                tvCompletionPercentage.setText(percentage + "%");
+            }
+            if (progressProfileCompletion != null) {
+                progressProfileCompletion.setProgress(percentage);
+            }
+            if (tvCompletionHint != null) {
+                if (percentage == 100) {
+                    tvCompletionHint.setText("Your profile is complete! Other members can connect easily.");
+                } else {
+                    tvCompletionHint.setText("Complete remaining fields by tapping 'Edit Profile' below.");
+                }
+            }
         }
     }
 
-    private void addProfileField(String label, String value) {
-        if (value == null || value.trim().isEmpty()) return;
+    private int checkAndAddField(String label, String value) {
+        if (value != null && !value.trim().isEmpty() && !"null".equalsIgnoreCase(value.trim())) {
+            addProfileField(label, value.trim(), null);
+            return 1;
+        }
+        return 0;
+    }
+
+    private int checkAndAddLinkField(String label, String url) {
+        if (url != null && !url.trim().isEmpty() && !"null".equalsIgnoreCase(url.trim())) {
+            addProfileField(label, url.trim(), url.trim());
+            return 1;
+        }
+        return 0;
+    }
+
+    private void addProfileField(String label, String value, String clickableUrl) {
+        if (!isAdded() || getContext() == null) return;
+
         LinearLayout row = new LinearLayout(requireContext());
         row.setOrientation(LinearLayout.VERTICAL);
         row.setPadding(0, 0, 0, 14);
@@ -163,11 +273,30 @@ public class ProfileFragment extends Fragment {
         TextView tvValue = new TextView(requireContext());
         tvValue.setText(value);
         tvValue.setTextSize(13f);
-        tvValue.setTextColor(getResources().getColor(R.color.text_primary, null));
+
+        if (clickableUrl != null) {
+            tvValue.setTextColor(getResources().getColor(R.color.primary, null));
+            tvValue.setText("🔗 " + value);
+            row.setClickable(true);
+            row.setFocusable(true);
+            row.setOnClickListener(v -> UrlUtils.openUrlSafely(requireContext(), clickableUrl));
+        } else {
+            tvValue.setTextColor(getResources().getColor(R.color.text_primary, null));
+        }
 
         row.addView(tvLabel);
         row.addView(tvValue);
         layoutProfileFields.addView(row);
+    }
+
+    private void tvUserField(TextView tv, String val) {
+        if (tv == null) return;
+        if (val == null || val.trim().isEmpty() || "null".equalsIgnoreCase(val.trim())) {
+            tv.setVisibility(View.GONE);
+        } else {
+            tv.setText(val.trim());
+            tv.setVisibility(View.VISIBLE);
+        }
     }
 
     private void showError(String msg) {
@@ -176,6 +305,7 @@ public class ProfileFragment extends Fragment {
     }
 
     private void openEditProfile() {
+        if (!isAdded() || getContext() == null) return;
         Intent intent = new Intent(requireContext(), EditProfileActivity.class);
         if (currentProfile != null) {
             intent.putExtra("profile_name", currentProfile.getName());
@@ -199,7 +329,81 @@ public class ProfileFragment extends Fragment {
         startActivity(intent);
     }
 
-    /** Build minimal User object for SessionManager update */
+    private void showNotificationPreferencesDialog() {
+        if (!isAdded() || getContext() == null) return;
+
+        preferenceRepository.getPreferences().enqueue(new Callback<NotificationPreferences>() {
+            @Override
+            public void onResponse(@NonNull Call<NotificationPreferences> call, @NonNull Response<NotificationPreferences> response) {
+                if (!isAdded() || getContext() == null) return;
+
+                boolean events = true;
+                boolean mentorship = true;
+                boolean opportunities = true;
+                boolean announcements = true;
+
+                if (response.isSuccessful() && response.body() != null) {
+                    NotificationPreferences prefs = response.body();
+                    events = prefs.isEvents();
+                    mentorship = prefs.isMentorship();
+                    opportunities = prefs.isOpportunities();
+                    announcements = prefs.isAnnouncements();
+                }
+
+                final boolean[] checkedItems = new boolean[]{events, mentorship, opportunities, announcements};
+                final CharSequence[] items = new CharSequence[]{
+                        "📅 Event Reminders & Updates",
+                        "🤝 Mentorship Requests & Updates",
+                        "💼 Career & Job Opportunities",
+                        "📢 Campus Announcements"
+                };
+
+                new MaterialAlertDialogBuilder(requireContext())
+                        .setTitle("Notification Preferences")
+                        .setMultiChoiceItems(items, checkedItems, (dialog, which, isChecked) -> {
+                            checkedItems[which] = isChecked;
+                        })
+                        .setPositiveButton("Save", (dialog, which) -> {
+                            NotificationPreferences updated = new NotificationPreferences(
+                                    checkedItems[0],
+                                    checkedItems[1],
+                                    checkedItems[2],
+                                    checkedItems[3]
+                            );
+                            saveNotificationPreferences(updated);
+                        })
+                        .setNegativeButton("Cancel", null)
+                        .show();
+            }
+
+            @Override
+            public void onFailure(@NonNull Call<NotificationPreferences> call, @NonNull Throwable t) {
+                if (!isAdded() || getContext() == null) return;
+                Toast.makeText(requireContext(), "Failed to load preferences: " + ApiErrorUtils.getNetworkErrorMessage(t), Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private void saveNotificationPreferences(NotificationPreferences prefs) {
+        preferenceRepository.updatePreferences(prefs).enqueue(new Callback<NotificationPreferences>() {
+            @Override
+            public void onResponse(@NonNull Call<NotificationPreferences> call, @NonNull Response<NotificationPreferences> response) {
+                if (!isAdded() || getContext() == null) return;
+                if (response.isSuccessful()) {
+                    Toast.makeText(requireContext(), "Preferences updated successfully", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(requireContext(), "Failed to update: " + ApiErrorUtils.getErrorMessage(response), Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void onFailure(@NonNull Call<NotificationPreferences> call, @NonNull Throwable t) {
+                if (!isAdded() || getContext() == null) return;
+                Toast.makeText(requireContext(), ApiErrorUtils.getNetworkErrorMessage(t), Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
     private com.alumniconnect.app.models.User buildUserFromProfile(ProfileResponse p) {
         com.alumniconnect.app.models.User u = new com.alumniconnect.app.models.User();
         u.setId(p.getId());
@@ -207,5 +411,96 @@ public class ProfileFragment extends Fragment {
         u.setEmail(p.getEmail());
         u.setRole(p.getRole());
         return u;
+    }
+
+    private void loadAchievements() {
+        if (achievementRepository == null || achievementsAdapter == null) return;
+        achievementRepository.getMyAchievements().enqueue(new Callback<java.util.List<com.alumniconnect.app.models.Achievement>>() {
+            @Override
+            public void onResponse(@NonNull Call<java.util.List<com.alumniconnect.app.models.Achievement>> call,
+                                   @NonNull Response<java.util.List<com.alumniconnect.app.models.Achievement>> response) {
+                if (!isAdded() || getContext() == null) return;
+                if (response.isSuccessful() && response.body() != null) {
+                    java.util.List<com.alumniconnect.app.models.Achievement> list = response.body();
+                    achievementsAdapter.setList(list);
+                    if (tvEmptyAchievements != null) {
+                        tvEmptyAchievements.setVisibility(list.isEmpty() ? View.VISIBLE : View.GONE);
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(@NonNull Call<java.util.List<com.alumniconnect.app.models.Achievement>> call, @NonNull Throwable t) {}
+        });
+    }
+
+    private void showAddAchievementDialog() {
+        if (!isAdded() || getContext() == null) return;
+        View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_submit_achievement, null);
+        com.google.android.material.textfield.TextInputEditText etTitle = dialogView.findViewById(R.id.et_ach_title);
+        android.widget.Spinner spinnerCategory = dialogView.findViewById(R.id.spinner_ach_category);
+        com.google.android.material.textfield.TextInputEditText etIssuer = dialogView.findViewById(R.id.et_ach_issuer);
+        com.google.android.material.textfield.TextInputEditText etDate = dialogView.findViewById(R.id.et_ach_date);
+        com.google.android.material.textfield.TextInputEditText etDesc = dialogView.findViewById(R.id.et_ach_desc);
+        com.google.android.material.textfield.TextInputEditText etUrl = dialogView.findViewById(R.id.et_ach_url);
+        ProgressBar dialogProgress = dialogView.findViewById(R.id.progress_dialog_ach);
+
+        String[] categories = {"Award", "Certification", "Patent", "Publication", "Honor", "Other"};
+        android.widget.ArrayAdapter<String> catAdapter = new android.widget.ArrayAdapter<>(requireContext(),
+                android.R.layout.simple_spinner_dropdown_item, categories);
+        spinnerCategory.setAdapter(catAdapter);
+
+        androidx.appcompat.app.AlertDialog dialog = new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setView(dialogView)
+                .setPositiveButton("Add", null)
+                .setNegativeButton("Cancel", (d, which) -> d.dismiss())
+                .create();
+
+        dialog.setOnShowListener(d -> {
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                String title = etTitle.getText() != null ? etTitle.getText().toString().trim() : "";
+                String issuer = etIssuer.getText() != null ? etIssuer.getText().toString().trim() : "";
+                String date = etDate.getText() != null ? etDate.getText().toString().trim() : "";
+                String desc = etDesc.getText() != null ? etDesc.getText().toString().trim() : "";
+                String url = etUrl.getText() != null ? etUrl.getText().toString().trim() : "";
+                String category = spinnerCategory.getSelectedItem().toString().toLowerCase();
+
+                if (title.isEmpty()) {
+                    etTitle.setError("Title is required");
+                    return;
+                }
+
+                dialogProgress.setVisibility(View.VISIBLE);
+                dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setEnabled(false);
+
+                com.alumniconnect.app.models.AchievementCreateRequest request =
+                        new com.alumniconnect.app.models.AchievementCreateRequest(title, desc, category, date, issuer, url);
+
+                achievementRepository.createAchievement(request).enqueue(new Callback<com.alumniconnect.app.models.Achievement>() {
+                    @Override
+                    public void onResponse(@NonNull Call<com.alumniconnect.app.models.Achievement> call,
+                                           @NonNull Response<com.alumniconnect.app.models.Achievement> response) {
+                        dialogProgress.setVisibility(View.GONE);
+                        if (response.isSuccessful()) {
+                            dialog.dismiss();
+                            Toast.makeText(requireContext(), "Achievement submitted for review!", Toast.LENGTH_SHORT).show();
+                            loadAchievements();
+                        } else {
+                            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setEnabled(true);
+                            Toast.makeText(requireContext(), "Submission failed: " + response.code(), Toast.LENGTH_SHORT).show();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(@NonNull Call<com.alumniconnect.app.models.Achievement> call, @NonNull Throwable t) {
+                        dialogProgress.setVisibility(View.GONE);
+                        dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setEnabled(true);
+                        Toast.makeText(requireContext(), "Network error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                    }
+                });
+            });
+        });
+
+        dialog.show();
     }
 }

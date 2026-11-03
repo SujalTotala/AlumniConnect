@@ -6,6 +6,7 @@ from sqlalchemy import or_
 from app.database.db_dependency import get_db
 from app.models.alumni_model import Alumni
 from app.models.user_model import User
+from app.models.profile_model import StudentProfile
 from app.schemas.alumni_schema import AlumniCreate, AlumniUpdate, AlumniResponse
 from app.auth.jwt_dependency import get_current_user, get_optional_current_user, require_role
 
@@ -18,7 +19,10 @@ def get_alumni(
     department: Optional[str] = Query(None, description="Filter by department/branch"),
     graduation_year: Optional[str] = Query(None, description="Filter by graduation year"),
     company: Optional[str] = Query(None, description="Filter by company"),
+    job_role: Optional[str] = Query(None, description="Filter by job role"),
     location: Optional[str] = Query(None, description="Filter by location"),
+    skills: Optional[str] = Query(None, description="Filter by skills"),
+    is_verified: Optional[bool] = Query(None, description="Filter by verified status"),
     mentorship_available: Optional[bool] = Query(None, description="Filter by mentorship availability"),
     db: Session = Depends(get_db)
 ):
@@ -45,12 +49,116 @@ def get_alumni(
         query = query.filter(Alumni.graduation_year == graduation_year)
     if company:
         query = query.filter(Alumni.company.ilike(f"%{company}%"))
+    if job_role:
+        query = query.filter(Alumni.job_role.ilike(f"%{job_role}%"))
     if location:
         query = query.filter(Alumni.location.ilike(f"%{location}%"))
+    if skills:
+        query = query.filter(Alumni.skills.ilike(f"%{skills}%"))
+    if is_verified is not None:
+        query = query.filter(Alumni.is_verified == is_verified)
     if mentorship_available is not None:
         query = query.filter(Alumni.mentorship_available == mentorship_available)
 
     return query.order_by(Alumni.id.desc()).all()
+
+# Get Rule-Based Recommended Mentors (Must be before /{alumni_id})
+@router.get("/recommendations/mentors")
+def get_recommended_mentors(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Fetch current user profile characteristics
+    user_branch = ""
+    user_skills = ""
+    user_interests = ""
+
+    if current_user.role == "student":
+        sp = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).first()
+        if sp:
+            user_branch = sp.branch or ""
+            user_skills = sp.skills or ""
+            user_interests = sp.interests or ""
+    elif current_user.role == "alumni":
+        ap = db.query(Alumni).filter(Alumni.user_id == current_user.id).first()
+        if ap:
+            user_branch = ap.department or ""
+            user_skills = ap.skills or ""
+            user_interests = ap.job_role or ap.company or ""
+
+    # Query available mentors
+    mentors_query = db.query(Alumni).filter(Alumni.mentorship_available == True)
+    if current_user.role == "alumni":
+        mentors_query = mentors_query.filter(Alumni.user_id != current_user.id)
+
+    available_mentors = mentors_query.all()
+    recommendations = []
+
+    for mentor in available_mentors:
+        raw_score = 0
+        max_available = 0
+        match_reasons = []
+
+        # Factor 1: Department / Branch overlap (Weight: 40)
+        if user_branch and mentor.department:
+            max_available += 40
+            ub = user_branch.strip().lower()
+            md = mentor.department.strip().lower()
+            if ub in md or md in ub:
+                raw_score += 40
+                match_reasons.append(f"Same department: {mentor.department}")
+
+        # Factor 2: Skill Overlap (Weight: 35)
+        if user_skills and mentor.skills:
+            max_available += 35
+            u_tokens = {s.strip().lower() for s in user_skills.replace(",", " ").split() if len(s.strip()) > 1}
+            m_tokens = {s.strip().lower() for s in mentor.skills.replace(",", " ").split() if len(s.strip()) > 1}
+            common = u_tokens.intersection(m_tokens)
+            if common:
+                ratio = len(common) / max(len(u_tokens), 1)
+                earned = int(35 * min(ratio, 1.0))
+                raw_score += max(earned, 15)  # At least 15 if there is overlap
+                match_reasons.append(f"Matching skills: {', '.join(sorted(common)[:3]).title()}")
+
+        # Factor 3: Interest & Desired Role / Company Alignment (Weight: 25)
+        if user_interests and (mentor.job_role or mentor.company):
+            max_available += 25
+            u_interests = {t.strip().lower() for t in user_interests.replace(",", " ").split() if len(t.strip()) > 2}
+            target_tokens = set()
+            if mentor.job_role:
+                target_tokens.update(t.strip().lower() for t in mentor.job_role.replace(",", " ").split() if len(t.strip()) > 2)
+            if mentor.company:
+                target_tokens.update(t.strip().lower() for t in mentor.company.replace(",", " ").split() if len(t.strip()) > 2)
+
+            overlap = u_interests.intersection(target_tokens)
+            if overlap:
+                raw_score += 25
+                target = mentor.job_role or mentor.company
+                match_reasons.append(f"Career alignment: {target}")
+
+        # Compute normalized score (0–100)
+        if max_available > 0:
+            match_score = round((raw_score / max_available) * 100)
+        else:
+            # Baseline compatibility when profile is still empty
+            match_score = 50
+            if mentor.department:
+                match_reasons.append(f"Available mentor in {mentor.department}")
+            else:
+                match_reasons.append("Active mentor available for guidance")
+
+        if not match_reasons:
+            match_reasons.append("Verified available mentor in Alumni network")
+
+        recommendations.append({
+            "alumni": AlumniResponse.model_validate(mentor),
+            "match_score": match_score,
+            "match_reasons": match_reasons,
+        })
+
+    # Sort descending by compatibility score
+    recommendations.sort(key=lambda r: r["match_score"], reverse=True)
+    return recommendations[:10]
 
 # Get Single Alumni by ID
 @router.get("/{alumni_id}", response_model=AlumniResponse)
