@@ -100,7 +100,7 @@ def main():
         else:
             print(f"  [CLOUD ATTEMPTING RE-REGISTRATION] {u['role'].upper()}: {u['email']} (Status {r_login.status_code})")
             r_reg = client_cloud.post("/auth/register", json=u)
-            print(f"    -> Register response: {r_reg.status_code} {r_reg.text[:60]}")
+            print(f"    -> Register response: {r_reg.status_code}")
             r_login2 = client_cloud.post("/auth/login", json={"email": u["email"], "password": u["password"]})
             print(f"    -> Re-test login: {r_login2.status_code}")
 

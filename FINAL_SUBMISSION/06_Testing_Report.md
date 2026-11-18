@@ -113,6 +113,11 @@ backend/test_phase6h_full_system.py::test_phase6h_full_system_regression PASSED 
   - Target URL: `https://alumniconnect-bwoi.onrender.com/` (Clean unsigned release binary for production signing handoff)
   - Status: Built successfully.
 
+### 3.3 Live API & Backend Execution Verification
+- **Figure 5.10:** `Figure_5_10_API_Testing_Backend_Execution.png`
+  - **Interactive OpenAPI / Swagger UI Execution:** Validated live execution against `GET https://alumniconnect-bwoi.onrender.com/health` returning HTTP 200 OK with `{"status":"ok","service":"AlumniConnect API"}` and response headers.
+  - **Backend Server Runtime Console:** Validated live Uvicorn server startup, PostgreSQL database connectivity, Alembic migration verification to head (`d4e5f6a7b8c9`), and request execution logs.
+
 ---
 
 ## 4. Known Issues & Operational Considerations
